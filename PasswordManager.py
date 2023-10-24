@@ -2,21 +2,24 @@ from random import SystemRandom
 import sys
 from PasswordManagerGUI import *
 import pandas as pd
-from PyQt6 import QtCore, QtGui, QtWidgets
-import os.path
+from PyQt6 import QtCore, QtGui
+from PyQt6.QtWidgets import QApplication, QMainWindow, QAbstractItemView, QTableWidget, QTableWidgetItem, QFileDialog
+import os
 
 # python -m PyQt6.uic.pyuic -x PasswordManager.ui -o PasswordManagerGUI.py
 
 class PasswordManager():
     def __init__(self):
-        app = QtWidgets.QApplication(sys.argv)
-        self.MainWindow = QtWidgets.QMainWindow()
+        app = QApplication(sys.argv)
+        self.MainWindow = QMainWindow()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self.MainWindow)
         self.MainWindow.show()
 
         self.AdditionalUISetup()
         self.ConnectButtons()
+        
+        app.processEvents()
 
         self.loginData = pd.DataFrame(columns = ['Name', 'Username', 'Email', 'Password', 'Pin', 'Notes'])
         self.action = ""
@@ -57,8 +60,24 @@ class PasswordManager():
         self.loginData.to_parquet("./Login_Data.parquet")
 
     def OnExportData(self):
-        self.loginData.to_excel("./Login_Data.xlsx", index=False)
-
+        documentsFolder = os.path.join(os.environ['USERPROFILE'], 'Documents')
+        defaultFileName = "MyLoginData"
+        fileObj =  QFileDialog.getSaveFileName(None, 'Save File', documentsFolder + "/" + defaultFileName, "Excel (*.xlsx);;CSV (*.csv);;JSON (*.json);;XML (*.xml);;All Files (*)", "Excel (*.xlsx)")
+        if fileObj[0] != '':
+            fileType = os.path.splitext(fileObj[0])[1]
+            match fileType:
+                case ".xlsx":
+                    self.loginData.to_excel(fileObj[0], index = False)
+                case ".csv":
+                    self.loginData.to_csv(fileObj[0], index = False)
+                case ".json":
+                    self.loginData.to_json(fileObj[0], index = False)
+                case ".xml":
+                    self.loginData.to_xml(fileObj[0], index = False)
+                case _:
+                    print(f"'{fileType}' is not a valid file type")
+        
+ 
 
     def OnFilterData(self):
         name = self.ui.lineEditNameSearch.text().lower()
@@ -123,15 +142,15 @@ class PasswordManager():
         self.ui.pushButtonAddNewEntry.setEnabled(True)
         self.ui.pushButtonExportData.setEnabled(True)
         
-        self.ui.tableWidgetLoginData.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.ui.tableWidgetLoginData.setSelectionBehavior(QtWidgets.QTableWidget.SelectionBehavior.SelectItems)
+        self.ui.tableWidgetLoginData.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.ui.tableWidgetLoginData.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
         self.ui.tableWidgetLoginData.clearSelection()
 
 
     def OnEdit(self):
         self.EnterEditDeleteUI()
-        self.ui.tableWidgetLoginData.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.AllEditTriggers)
-        self.ui.tableWidgetLoginData.setSelectionBehavior(QtWidgets.QTableWidget.SelectionBehavior.SelectItems)
+        self.ui.tableWidgetLoginData.setEditTriggers(QAbstractItemView.EditTrigger.AllEditTriggers)
+        self.ui.tableWidgetLoginData.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
         self.action = "Edit"
 
     def OnSave(self):
@@ -156,7 +175,7 @@ class PasswordManager():
 
     def OnDelete(self):
         self.EnterEditDeleteUI()
-        self.ui.tableWidgetLoginData.setSelectionBehavior(QtWidgets.QTableWidget.SelectionBehavior.SelectRows)
+        self.ui.tableWidgetLoginData.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.action = "Delete"
         
 
@@ -185,7 +204,7 @@ class PasswordManager():
         self.SaveData()
 
 
-    def lastColumnFits(self):
+    def LastColumnFits(self):
         total_width = self.ui.tableWidgetLoginData.viewport().width()
         column_width_sum = 0
 
@@ -202,13 +221,13 @@ class PasswordManager():
         dataList = self.loginData.values.tolist()
         for row in range(len(dataList)):
             for col in range(len(dataList[0])):
-                self.ui.tableWidgetLoginData.setItem(row, col, QtWidgets.QTableWidgetItem(str(dataList[row][col])))
+                self.ui.tableWidgetLoginData.setItem(row, col, QTableWidgetItem(str(dataList[row][col])))
 
         self.ui.tableWidgetLoginData.repaint()
 
         self.ui.tableWidgetLoginData.resizeColumnsToContents()
         
-        if self.lastColumnFits():
+        if self.LastColumnFits():
             self.ui.tableWidgetLoginData.horizontalHeader().setSectionResizeMode(self.ui.tableWidgetLoginData.columnCount() - 1, QtWidgets.QHeaderView.ResizeMode.Stretch)
             self.ui.tableWidgetLoginData.horizontalHeader().setStretchLastSection(True)
 
