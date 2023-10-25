@@ -1,6 +1,7 @@
 from random import SystemRandom
 import sys
 from PasswordManagerGUI import *
+from GeneratePasswordGUI import *
 import pandas as pd
 from PyQt6 import QtCore, QtGui
 from PyQt6.QtWidgets import QApplication, QMainWindow, QAbstractItemView, QTableWidget, QTableWidgetItem, QFileDialog
@@ -270,11 +271,8 @@ class PasswordManager():
 
 
     def OnGeneratePassword(self):
-        # Open new password window
-
         PasswordObj = PasswordGenerator()
-        password = PasswordObj.generatePassword(10, True, True)
-        self.ui.lineEditPasswordNewEntry.setText(password)
+        self.ui.lineEditPasswordNewEntry.setText(PasswordObj.GetPassword())
 
 
 
@@ -289,8 +287,33 @@ class PasswordGenerator():
         # Cryptographically secure randomizer
         self.sys_random = SystemRandom()
 
-    def generatePassword(self, length, includeSymbols, includeNumbers):
+        # Create Password Generator Dialog
+        self.Dialog = QtWidgets.QDialog()
+        self.ui = Ui_Dialog()
+        self.ui.setupUi(self.Dialog)
+        self.AdditionalUISetup()
+        self.ConnectButtons()
+
+        self.Dialog.exec()
+
+
+    def AdditionalUISetup(self):
+        labelOptionsFont = self.ui.labelPwdOptions.font()
+        labelOptionsFont.setPointSize(16)
+        self.ui.labelPwdOptions.setFont(labelOptionsFont)
+
+        self.ui.labelPwdCopiedtoClipboard.setVisible(False)
+
+
+    def ConnectButtons(self):
+        self.ui.pushButtonPwdGeneratePwd.clicked.connect(self.GeneratePassword)
+        self.ui.pushButtonPwdCancel.clicked.connect(self.OnCancel)
+        self.ui.pushButtonPwdOK.clicked.connect(self.CloseDialog)
+
+
+    def GeneratePassword(self):
         password = []
+        length = self.ui.spinBoxPwdLen.value()
 
         # Passwords must be at least 4 characters long
         if length < 4:
@@ -300,10 +323,10 @@ class PasswordGenerator():
         remainingChars = length
 
         # If the password will contain numbers
-        if includeNumbers:
+        if self.ui.checkBoxPwdIncludeNumbers.isChecked():
             numNumbers = self.sys_random.randint(1, length // 2.5)
             # If the password will contain numbers and symbols
-            if includeSymbols:
+            if self.ui.checkBoxPwdIncludeSymbols.isChecked():
                 numSymbols = min(self.sys_random.randint(1, length // 2.5), length - 3)
                 remainingChars -= numSymbols
                 randSymbols = self.sys_random.choices(self.specialSymbols, k = numSymbols)
@@ -319,7 +342,7 @@ class PasswordGenerator():
             remainingChars -= numUppercase
 
         # If the password will contain symbols but not numbers
-        elif includeSymbols:
+        elif self.ui.checkBoxPwdIncludeSymbols.isChecked():
             numSymbols = min(self.sys_random.randint(1, length // 2.5), length - 2)
             remainingChars -= numSymbols
             randSymbols = self.sys_random.choices(self.specialSymbols, k = numSymbols)
@@ -338,15 +361,34 @@ class PasswordGenerator():
         # Choose lowercase letters
         password += self.sys_random.choices(self.lowercaseLetters, k = remainingChars)
 
-        # Shuffle the password order
+        # Shuffle the password order. Doesn't make it any more random
         self.sys_random.shuffle(password)
 
         # If there is a length mismatch, which should not happen
         if (len(password) != length):
             print ("Error length mismatch: " + str(len(password)) + " v.s. " + str(length))
 
-        # Return the password as a string
-        return ''.join(password)
+        # Save the password as a string
+        self.ui.lineEditPwdPassword.setText(''.join(password))
+
+        # Copy password to clipboard
+        clipboard = QApplication.clipboard()
+        clipboard.setText(self.ui.lineEditPwdPassword.text())
+        self.ui.labelPwdCopiedtoClipboard.setVisible(True)
+        self.ui.lineEditPwdPassword.selectAll()
+
+    def GetPassword(self):
+        return self.ui.lineEditPwdPassword.text()
+    
+
+    def CloseDialog(self):
+        self.Dialog.close()
+
+    def OnCancel(self):
+        self.ui.lineEditPwdPassword.setText("")
+        self.CloseDialog()
+    
+
 
 
 if __name__ == "__main__":
