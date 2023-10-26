@@ -122,6 +122,7 @@ class PasswordManager():
         self.ui.lineEditNotesNewEntry.setDisabled(True)
         self.ui.pushButtonAddNewEntry.setDisabled(True)
         self.ui.pushButtonExportData.setDisabled(True)
+        self.ui.tableWidgetLoginData.clearSelection()
         
     def ExitEditDeleteUI(self):
         self.ui.pushButtonEdit.setVisible(True)
@@ -145,7 +146,6 @@ class PasswordManager():
         
         self.ui.tableWidgetLoginData.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.ui.tableWidgetLoginData.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
-        self.ui.tableWidgetLoginData.clearSelection()
 
 
     def OnEdit(self):
@@ -164,6 +164,7 @@ class PasswordManager():
             self.DeleteRows()
 
         self.action = ""
+        self.ui.tableWidgetLoginData.clearSelection()
 
     def OnCancel(self):
         print("Cancel changes")
@@ -173,12 +174,12 @@ class PasswordManager():
             self.DisplayTable()
 
         self.action = ""
+        self.ui.tableWidgetLoginData.clearSelection()
 
     def OnDelete(self):
         self.EnterEditDeleteUI()
         self.ui.tableWidgetLoginData.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.action = "Delete"
-        
 
     
     def OnAddNewEntry(self):
@@ -263,11 +264,10 @@ class PasswordManager():
 
         self.loginData = self.loginData.drop(index = selectedRows)
 
-        self.ui.tableWidgetLoginData.clearSelection()
-
         for row in selectedRows:
             self.ui.tableWidgetLoginData.removeRow(row)
 
+        self.SaveData()
 
 
     def OnGeneratePassword(self):
