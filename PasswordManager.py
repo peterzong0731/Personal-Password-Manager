@@ -1,13 +1,15 @@
 from random import SystemRandom
 import sys
 from PasswordManagerGUI import *
-from GeneratePasswordGUI import *
+import GeneratePasswordGUI
+import ImportFileOptionsGUI
 import pandas as pd
-from PyQt6 import QtCore, QtGui
-from PyQt6.QtWidgets import QApplication, QMainWindow, QAbstractItemView, QTableWidget, QTableWidgetItem, QFileDialog
+from PyQt6 import QtGui
+from PyQt6.QtWidgets import QApplication, QMainWindow, QAbstractItemView, QTableWidget, QTableWidgetItem, QFileDialog, QStatusBar
+from PyQt6.QtCore import pyqtSignal
 import os
 
-# python -m PyQt6.uic.pyuic -x PasswordManager.ui -o PasswordManagerGUI.py
+# python -m PyQt6.uic.pyuic -x PasswordManager.ui -o PasswordManagerGUICopy.py
 
 class PasswordManager():
     def __init__(self):
@@ -22,8 +24,8 @@ class PasswordManager():
         
         app.processEvents()
 
-        self.loginData = pd.DataFrame(columns = ['Name', 'Username', 'Email', 'Password', 'Pin', 'Notes'])
-        self.action = ""
+        self.expectedColumns = ['Name', 'Username', 'Email', 'Password', 'Pin', 'Notes']
+        self.loginData = pd.DataFrame(columns = self.expectedColumns)
 
         self.GetData()
         self.DisplayTable()
@@ -36,21 +38,40 @@ class PasswordManager():
         pushButtonAddNewEntryFont.setPointSize(16)
         self.ui.pushButtonAddNewEntry.setFont(pushButtonAddNewEntryFont)
 
-        self.ui.pushButtonCancel.setVisible(False)
-        self.ui.pushButtonSave.setVisible(False)
+        self.ui.lineEditNameNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
+        self.ui.lineEditUsernameNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
+        self.ui.lineEditEmailNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
+        self.ui.lineEditPasswordNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
+        self.ui.lineEditPinNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
+        self.ui.lineEditNotesNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
+        
+        self.ui.lineEditNameNewEntry.textChanged.connect(
+            lambda: (
+                self.ui.lineEditNameNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}"),
+                self.ClearStatusBar()
+            )
+        )
 
+        self.ui.pushButtonCancel.setVisible(False)
+        self.ui.pushButtonConfirm.setVisible(False)
+
+        self.ui.lineEditNameSearch.textChanged.connect(self.OnFilterData)
+        self.ui.lineEditEmailSearch.textChanged.connect(self.OnFilterData)
+
+        self.status_bar = QStatusBar()
+        self.MainWindow.setStatusBar(self.status_bar)
 
 
     def ConnectButtons(self):
-        self.ui.pushButtonSearch.clicked.connect(self.OnFilterData)
-        self.ui.pushButtonClear.clicked.connect(self.OnClearFilters)
         self.ui.pushButtonAddNewEntry.clicked.connect(self.OnAddNewEntry)
         self.ui.pushButtonEdit.clicked.connect(self.OnEdit)
         self.ui.pushButtonDelete.clicked.connect(self.OnDelete)
-        self.ui.pushButtonSave.clicked.connect(self.OnSave)
+        self.ui.pushButtonConfirm.clicked.connect(self.OnConfirm)
         self.ui.pushButtonCancel.clicked.connect(self.OnCancel)
+        self.ui.pushButtonImportData.clicked.connect(self.OnImportData)
         self.ui.pushButtonExportData.clicked.connect(self.OnExportData)
         self.ui.pushButtonGenSecPass.clicked.connect(self.OnGeneratePassword)
+        self.ui.pushButtonRemoveDuplicates.clicked.connect(self.OnRemoveDuplicates)
 
 
     def GetData(self):
@@ -60,25 +81,99 @@ class PasswordManager():
     def SaveData(self):
         self.loginData.to_parquet("./Login_Data.parquet")
 
-    def OnExportData(self):
-        documentsFolder = os.path.join(os.environ['USERPROFILE'], 'Documents')
-        defaultFileName = "MyLoginData"
-        fileObj =  QFileDialog.getSaveFileName(None, 'Save File', documentsFolder + "/" + defaultFileName, "Excel (*.xlsx);;CSV (*.csv);;JSON (*.json);;XML (*.xml);;All Files (*)", "Excel (*.xlsx)")
-        if fileObj[0] != '':
-            fileType = os.path.splitext(fileObj[0])[1]
-            match fileType:
-                case ".xlsx":
-                    self.loginData.to_excel(fileObj[0], index = False)
-                case ".csv":
-                    self.loginData.to_csv(fileObj[0], index = False)
-                case ".json":
-                    self.loginData.to_json(fileObj[0], index = False)
-                case ".xml":
-                    self.loginData.to_xml(fileObj[0], index = False)
-                case _:
-                    print(f"'{fileType}' is not a valid file type")
+
+    def OnImportData(self):
+        self.ClearStatusBar()
+        fileObj = QFileDialog.getOpenFileName(None, "Open File", "", "Excel (*.xlsx);;CSV (*.csv);;JSON (*.json);;XML (*.xml);;Parquet (*.parquet);;All Files (*)")
+        if fileObj[0] == "":
+            return
         
- 
+        self.importedData = None
+        fileType = os.path.splitext(fileObj[0])[1]
+        match fileType:
+            case ".xlsx":
+                self.importedData = pd.read_excel(fileObj[0], dtype=str)
+            case ".csv":
+                self.importedData = pd.read_csv(fileObj[0], dtype=str)
+            case ".json":
+                self.importedData = pd.read_json(fileObj[0], dtype=str)
+            case ".xml":
+                self.importedData = pd.read_xml(fileObj[0], dtype=str)
+            case ".parquet":
+                self.importedData = pd.read_parquet(fileObj[0])
+            case _:
+                self.UpdateStatusBar(f"Invalid file selected, '{fileType}' is not a valid file type", "red")
+                return
+            
+        # Check if the columns match up
+        if set(self.expectedColumns) != set(self.importedData.columns):
+            missingColumns = set(self.expectedColumns) - set(self.importedData.columns)
+            extraColumns = set(self.importedData.columns) - set(self.expectedColumns)
+            statusBarMessage = "Error importing data."
+            if len(missingColumns) > 0:
+                statusBarMessage += " Missing columns: [" + ", ".join(missingColumns) + "]."
+            if len(extraColumns) > 0:
+                statusBarMessage += " Unexpected columns: [" + ", ".join(missingColumns) + "]."
+            self.UpdateStatusBar(statusBarMessage, "red")
+            return
+                
+        self.importedData = self.importedData.fillna("")
+
+        importFileObj = ImportFileOptions()
+        importFileObj.dialogClosed.connect(self.OnImportFileDialogClosed)
+        importFileObj.Dialog.exec()
+
+    def OnImportFileDialogClosed(self, response):
+        if response == "Cancel":
+            return
+        elif response == "Add":
+            self.loginData = pd.concat([self.loginData, self.importedData])
+            self.loginData = self.loginData.drop_duplicates()
+            self.UpdateStatusBar('Data imported with the "Add" mode')
+        elif response == "Replace":
+            self.loginData = self.importedData
+            self.UpdateStatusBar('Data imported with the "Replace" mode')
+
+        self.DisplayTable()
+        self.SaveData()
+
+    def OnExportData(self):
+        self.ClearStatusBar()
+        defaultFileName = "LoginData.xlsx"
+        fileObj =  QFileDialog.getSaveFileName(None, "Save File", defaultFileName, "Excel (*.xlsx);;CSV (*.csv);;JSON (*.json);;XML (*.xml);;Parquet (*.parquet);;All Files (*)")
+        if fileObj[0] == "":
+            return
+        
+        # Check if file is in currently in use/open
+        if os.path.exists(fileObj[0]):
+            try:
+                fd = os.open(fileObj[0], os.O_RDWR | os.O_EXCL)
+                os.close(fd)
+            except OSError as e:
+                print(e)
+                self.UpdateStatusBar("Failed to export file because it is currently in use. Please close it and try again.", "red")
+                return
+
+        fileType = os.path.splitext(fileObj[0])[1]
+        match fileType:
+            case ".xlsx":
+                self.loginData.to_excel(fileObj[0], index = False)
+                self.UpdateStatusBar(".xlsx file exported")
+            case ".csv":
+                self.loginData.to_csv(fileObj[0], index = False)
+                self.UpdateStatusBar(".csv file exported")
+            case ".json":
+                self.loginData.to_json(fileObj[0], index = False)
+                self.UpdateStatusBar(".json file exported")
+            case ".xml":
+                self.loginData.to_xml(fileObj[0], index = False)
+                self.UpdateStatusBar(".xml file exported")
+            case ".parquet":
+                self.loginData.to_parquet(fileObj[0], index = False)
+                self.UpdateStatusBar(".parquet file exported")
+            case _:
+                self.UpdateStatusBar(f"Invalid file selected, '{fileType}' is not a valid file type", "red")
+
 
     def OnFilterData(self):
         name = self.ui.lineEditNameSearch.text().lower()
@@ -95,24 +190,31 @@ class PasswordManager():
             else:
                 self.ui.tableWidgetLoginData.setRowHidden(row, True)
 
-    def OnClearFilters(self):
-        print("Clearing Filters")
-        self.ui.lineEditNameSearch.setText('')
-        self.ui.lineEditEmailSearch.setText('')
 
-        self.OnFilterData()
+    def OnRemoveDuplicates(self):
+        oldDataFrame = self.loginData
+        self.loginData = oldDataFrame.drop_duplicates()
+
+        duplicatesDropped = oldDataFrame.shape[0] - self.loginData.shape[0]
+        if duplicatesDropped == 0:
+            self.UpdateStatusBar("No duplicates found")
+        elif duplicatesDropped == 1:
+            self.UpdateStatusBar("1 duplicate removed")
+        else:
+            self.UpdateStatusBar(str(duplicatesDropped) + " duplicates removed")
+
+        self.DisplayTable()
+        self.SaveData()
 
 
     def EnterEditDeleteUI(self):
         self.ui.pushButtonEdit.setVisible(False)
         self.ui.pushButtonDelete.setVisible(False)
         self.ui.pushButtonCancel.setVisible(True)
-        self.ui.pushButtonSave.setVisible(True)
+        self.ui.pushButtonConfirm.setVisible(True)
         
         self.ui.lineEditNameSearch.setDisabled(True)
         self.ui.lineEditEmailSearch.setDisabled(True)
-        self.ui.pushButtonSearch.setDisabled(True)
-        self.ui.pushButtonClear.setDisabled(True)
         self.ui.lineEditNameNewEntry.setDisabled(True)
         self.ui.lineEditUsernameNewEntry.setDisabled(True)
         self.ui.lineEditEmailNewEntry.setDisabled(True)
@@ -122,18 +224,24 @@ class PasswordManager():
         self.ui.lineEditNotesNewEntry.setDisabled(True)
         self.ui.pushButtonAddNewEntry.setDisabled(True)
         self.ui.pushButtonExportData.setDisabled(True)
+
+        self.ui.lineEditNameNewEntry.setStyleSheet("QLineEdit {color: gray, border: 1px solid gray;}")
+        self.ui.lineEditUsernameNewEntry.setStyleSheet("QLineEdit {color: gray, border: 1px solid gray;}")
+        self.ui.lineEditEmailNewEntry.setStyleSheet("QLineEdit {color: gray, border 1px solid gray;}")
+        self.ui.lineEditPasswordNewEntry.setStyleSheet("QLineEdit {color: gray, border: 1px solid gray;}")
+        self.ui.lineEditPinNewEntry.setStyleSheet("QLineEdit {color: gray, border: 1px solid gray;}")
+        self.ui.lineEditNotesNewEntry.setStyleSheet("QLineEdit {color: gray, border: 1px solid gray;}")
+
         self.ui.tableWidgetLoginData.clearSelection()
         
     def ExitEditDeleteUI(self):
         self.ui.pushButtonEdit.setVisible(True)
         self.ui.pushButtonDelete.setVisible(True)
         self.ui.pushButtonCancel.setVisible(False)
-        self.ui.pushButtonSave.setVisible(False)
+        self.ui.pushButtonConfirm.setVisible(False)
         
         self.ui.lineEditNameSearch.setEnabled(True)
         self.ui.lineEditEmailSearch.setEnabled(True)
-        self.ui.pushButtonSearch.setEnabled(True)
-        self.ui.pushButtonClear.setEnabled(True)
         self.ui.lineEditNameNewEntry.setEnabled(True)
         self.ui.lineEditUsernameNewEntry.setEnabled(True)
         self.ui.lineEditEmailNewEntry.setEnabled(True)
@@ -143,19 +251,30 @@ class PasswordManager():
         self.ui.lineEditNotesNewEntry.setEnabled(True)
         self.ui.pushButtonAddNewEntry.setEnabled(True)
         self.ui.pushButtonExportData.setEnabled(True)
+
+        self.ui.lineEditNameNewEntry.setStyleSheet("QLineEdit {color: white, border: 1px solid gray;}")
+        self.ui.lineEditUsernameNewEntry.setStyleSheet("QLineEdit {color: white, border: 1px solid gray;}")
+        self.ui.lineEditEmailNewEntry.setStyleSheet("QLineEdit {color: white, border: 1px solid gray;}")
+        self.ui.lineEditPasswordNewEntry.setStyleSheet("QLineEdit {color: white, border: 1px solid gray;}")
+        self.ui.lineEditPinNewEntry.setStyleSheet("QLineEdit {color: white, border: 1px solid gray;}")
+        self.ui.lineEditNotesNewEntry.setStyleSheet("QLineEdit {color: white, border: 1px solid gray;}")
         
         self.ui.tableWidgetLoginData.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.ui.tableWidgetLoginData.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
 
+        self.ui.label_tableInstructions.setText("")
 
-    def OnEdit(self):
+
+    def OnEdit(self, clearStatusBar=True):
+        if clearStatusBar:
+            self.ClearStatusBar()
         self.EnterEditDeleteUI()
+        self.ui.label_tableInstructions.setText("Make the changes you want to the cells, then press Confirm to save")
         self.ui.tableWidgetLoginData.setEditTriggers(QAbstractItemView.EditTrigger.AllEditTriggers)
         self.ui.tableWidgetLoginData.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
         self.action = "Edit"
 
-    def OnSave(self):
-        print("Saving changes")
+    def OnConfirm(self):
         self.ExitEditDeleteUI()
 
         if self.action == "Edit":
@@ -163,21 +282,21 @@ class PasswordManager():
         elif self.action == "Delete":
             self.DeleteRows()
 
-        self.action = ""
         self.ui.tableWidgetLoginData.clearSelection()
 
     def OnCancel(self):
-        print("Cancel changes")
         self.ExitEditDeleteUI()
 
         if self.action == "Edit":
             self.DisplayTable()
 
-        self.action = ""
         self.ui.tableWidgetLoginData.clearSelection()
+        self.ClearStatusBar()
 
     def OnDelete(self):
+        self.ClearStatusBar()
         self.EnterEditDeleteUI()
+        self.ui.label_tableInstructions.setText("Select the rows you want to delete, then press Confirm to save")
         self.ui.tableWidgetLoginData.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.action = "Delete"
 
@@ -195,15 +314,30 @@ class PasswordManager():
                        }
         
         if newEntryData['Name'][0].strip() == '':
-            print("Name can't be empty")
+            self.UpdateStatusBar("Name can't be empty!", "red")
+            self.ui.lineEditNameNewEntry.setStyleSheet("QLineEdit {border: 1px solid red;}")
             return
 
-        newEntryDF = pd.DataFrame(newEntryData)
+        if self.loginData.isin(newEntryData).all(axis=1).any():
+            self.UpdateStatusBar("Failed to add entry. This is a duplicate entry that already exists")
+            return
         
+        newEntryDF = pd.DataFrame(newEntryData)
         self.loginData = pd.concat([self.loginData, newEntryDF], ignore_index = True)
 
+        self.ClearFields()     
+        self.UpdateStatusBar("New entry added")
+        self.ui.lineEditNameNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
         self.DisplayTable()
         self.SaveData()
+
+    def ClearFields(self):
+        self.ui.lineEditNameNewEntry.setText("")
+        self.ui.lineEditUsernameNewEntry.setText("")
+        self.ui.lineEditEmailNewEntry.setText("")
+        self.ui.lineEditPasswordNewEntry.setText("")
+        self.ui.lineEditPinNewEntry.setText("")
+        self.ui.lineEditNotesNewEntry.setText("")
 
 
     def LastColumnFits(self):
@@ -226,18 +360,23 @@ class PasswordManager():
                 self.ui.tableWidgetLoginData.setItem(row, col, QTableWidgetItem(str(dataList[row][col])))
 
         self.ui.tableWidgetLoginData.repaint()
-
         self.ui.tableWidgetLoginData.resizeColumnsToContents()
         
         if self.LastColumnFits():
             self.ui.tableWidgetLoginData.horizontalHeader().setSectionResizeMode(self.ui.tableWidgetLoginData.columnCount() - 1, QtWidgets.QHeaderView.ResizeMode.Stretch)
             self.ui.tableWidgetLoginData.horizontalHeader().setStretchLastSection(True)
 
+        for row in range(self.ui.tableWidgetLoginData.rowCount()):
+            item = self.ui.tableWidgetLoginData.item(row, 0)
+            if item:
+                item.setBackground(QtGui.QColor(255, 228, 196))  # Bisque color
+
+        self.ui.tableWidgetLoginData.horizontalHeader().setStyleSheet("QHeaderView::section { background-color: lightblue; color: black; }")
+
 
     def ApplyEdits(self):       
         numRows = self.ui.tableWidgetLoginData.rowCount()
         numColumns = self.ui.tableWidgetLoginData.columnCount()
-
         updatedData = []
 
         for row in range(numRows):
@@ -248,18 +387,31 @@ class PasswordManager():
                     row_data.append(item.text())
             updatedData.append(row_data)
 
-        self.loginData = pd.DataFrame(updatedData, columns = ['Name', 'Username', 'Email', 'Password', 'Pin', 'Notes'])
+        updatedDataFrame = pd.DataFrame(updatedData, columns = ['Name', 'Username', 'Email', 'Password', 'Pin', 'Notes'])       
+        if (updatedDataFrame.iloc[:, 0].str.strip() == "").any():
+            self.UpdateStatusBar("Name can't be blank", "red")
+            self.OnEdit(False)
+        else:
+            mismatch = (self.loginData != updatedDataFrame)
+            mismatchCount = mismatch.sum().sum()
 
-        self.SaveData()
-        self.DisplayTable()
+            self.loginData = updatedDataFrame
+
+            if mismatchCount == 0:
+                self.UpdateStatusBar("No cells edited")
+            elif mismatchCount == 1:
+                self.UpdateStatusBar("1 cell edited")
+            else:
+                self.UpdateStatusBar(str(mismatchCount) + " cells edited")
+
+            self.SaveData()
+            self.DisplayTable()
 
 
     def DeleteRows(self):
-        print("Deleting")
-
-        selectedRows = []
+        selectedRows = set()
         for item in self.ui.tableWidgetLoginData.selectedItems():
-            selectedRows.append(item.row())
+            selectedRows.add(item.row())
         selectedRows = sorted(selectedRows, reverse = True)
 
         self.loginData = self.loginData.drop(index = selectedRows)
@@ -267,13 +419,75 @@ class PasswordManager():
         for row in selectedRows:
             self.ui.tableWidgetLoginData.removeRow(row)
 
+        if len(selectedRows) == 0:
+            self.UpdateStatusBar("No entries deleted")
+        elif len(selectedRows) == 1:
+            self.UpdateStatusBar("1 entry deleted")
+        else:
+            self.UpdateStatusBar(str(len(selectedRows)) + " entries deleted")
         self.SaveData()
 
 
     def OnGeneratePassword(self):
+        self.ClearStatusBar()
         PasswordObj = PasswordGenerator()
         self.ui.lineEditPasswordNewEntry.setText(PasswordObj.GetPassword())
+        if PasswordObj.GetPassword() != "":
+            self.UpdateStatusBar("Password generated")
 
+
+    def UpdateStatusBar(self, message, color="black"):
+        self.status_bar.setStyleSheet("QStatusBar{ color: " + color + "; }")
+        self.status_bar.showMessage(message)
+        print(message)
+    
+    def ClearStatusBar(self):
+        self.status_bar.clearMessage()
+
+
+class ImportFileOptions(QtWidgets.QDialog):
+    dialogClosed = pyqtSignal(str)
+
+    def __init__(self):
+        super().__init__()
+
+        # Create Password Generator Dialog
+        self.Dialog = QtWidgets.QDialog()
+        self.ui = ImportFileOptionsGUI.Ui_Dialog()
+        self.ui.setupUi(self.Dialog)
+        self.AdditionalUISetup()
+        self.ConnectButtons()
+
+
+    def AdditionalUISetup(self):
+        self.ui.radioButtonImportAdd.clicked.connect(self.OnRadioButtonToggled)
+        self.ui.radioButtonImportReplace.clicked.connect(self.OnRadioButtonToggled)
+        self.ui.radioButtonImportAdd.click()
+
+    def ConnectButtons(self):
+        self.ui.pushButtonImportConfirm.clicked.connect(self.OnConfirm)
+        self.ui.pushButtonImportCancel.clicked.connect(self.OnCancel)
+
+    def OnRadioButtonToggled(self):
+        if self.ui.radioButtonImportAdd.isChecked():
+            self.ui.labelImportDesc.setText("This will only add new, unique entries from the selected file to your login data")
+        elif self.ui.radioButtonImportReplace.isChecked():
+            self.ui.labelImportDesc.setText("This will replace all your current login data with the new data from the selected file")
+
+        
+    def OnConfirm(self):
+        if self.ui.radioButtonImportAdd.isChecked():
+            self.dialogClosed.emit("Add")
+        elif self.ui.radioButtonImportReplace.isChecked():
+            self.dialogClosed.emit("Replace")
+        self.CloseDialog()
+
+    def OnCancel(self):
+        self.dialogClosed.emit("Cancel")
+        self.CloseDialog()    
+        
+    def CloseDialog(self):
+        self.Dialog.close()
 
 
 class PasswordGenerator():
@@ -289,10 +503,11 @@ class PasswordGenerator():
 
         # Create Password Generator Dialog
         self.Dialog = QtWidgets.QDialog()
-        self.ui = Ui_Dialog()
+        self.ui = GeneratePasswordGUI.Ui_Dialog()
         self.ui.setupUi(self.Dialog)
         self.AdditionalUISetup()
         self.ConnectButtons()
+        self.GeneratePassword()
 
         self.Dialog.exec()
 
@@ -310,16 +525,9 @@ class PasswordGenerator():
         self.ui.pushButtonPwdCancel.clicked.connect(self.OnCancel)
         self.ui.pushButtonPwdOK.clicked.connect(self.CloseDialog)
 
-
     def GeneratePassword(self):
         password = []
         length = self.ui.spinBoxPwdLen.value()
-
-        # Passwords must be at least 4 characters long
-        if length < 4:
-            print("Error")
-            return -1
-
         remainingChars = length
 
         # If the password will contain numbers
@@ -337,9 +545,6 @@ class PasswordGenerator():
 
             remainingChars -= numNumbers
             password += self.sys_random.choices(self.numbers, k = numNumbers)
-            
-            numUppercase = self.sys_random.randint(1, remainingChars - 1)
-            remainingChars -= numUppercase
 
         # If the password will contain symbols but not numbers
         elif self.ui.checkBoxPwdIncludeSymbols.isChecked():
@@ -347,26 +552,15 @@ class PasswordGenerator():
             remainingChars -= numSymbols
             randSymbols = self.sys_random.choices(self.specialSymbols, k = numSymbols)
             password = randSymbols
-
-            numUppercase = self.sys_random.randint(1, remainingChars - 1)
-            remainingChars -= numUppercase
-
-        # If the password will only contain letters
-        else:
-            numUppercase = self.sys_random.randint(1, length - 1)
-            remainingChars -= numUppercase
-
-        # Choose uppercase letters
-        password += self.sys_random.choices(self.uppercaseLetters, k = numUppercase)
-        # Choose lowercase letters
-        password += self.sys_random.choices(self.lowercaseLetters, k = remainingChars)
+        
+        password += self.sys_random.choices(self.uppercaseLetters + self.lowercaseLetters, k = remainingChars)
 
         # Shuffle the password order. Doesn't make it any more random
         self.sys_random.shuffle(password)
 
         # If there is a length mismatch, which should not happen
         if (len(password) != length):
-            print ("Error length mismatch: " + str(len(password)) + " v.s. " + str(length))
+            print ("Error length mismatch! Expected: " + str(length) + "  Actual: " + str(len(password)))
 
         # Save the password as a string
         self.ui.lineEditPwdPassword.setText(''.join(password))
@@ -388,7 +582,6 @@ class PasswordGenerator():
         self.ui.lineEditPwdPassword.setText("")
         self.CloseDialog()
     
-
 
 
 if __name__ == "__main__":
