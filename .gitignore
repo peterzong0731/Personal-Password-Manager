@@ -1,3 +1,5 @@
 
 *.pyc
 Login_Data.parquet
+/build
+*.spec
