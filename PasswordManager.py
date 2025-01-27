@@ -3,11 +3,14 @@ import sys
 from PasswordManagerGUI import *
 import GeneratePasswordGUI
 import ImportFileOptionsGUI
+import ManageCategories
 import pandas as pd
 from PyQt6 import QtGui
-from PyQt6.QtWidgets import QApplication, QMainWindow, QAbstractItemView, QTableWidget, QTableWidgetItem, QFileDialog, QStatusBar, QComboBox
+from PyQt6.QtWidgets import QApplication, QMainWindow, QAbstractItemView, QTableWidget, QTableWidgetItem, QFileDialog, QStatusBar, QComboBox, QColorDialog, QDialog
 from PyQt6.QtCore import pyqtSignal
 import os
+import json
+from re import match
 
 # python -m PyQt6.uic.pyuic -x PasswordManager.ui -o PasswordManagerGUICopy.py
 # python -m PyInstaller --onefile --noconsole --distpath ~/Documents PasswordManager.py
@@ -19,13 +22,14 @@ class PasswordManager():
     EMAIL_COLUMN = 3
     CATEGORY_SELECT_ALL = "Select All"
     EXPECTED_COLUMNS = ['Category', 'Name', 'Username', 'Email', 'Password', 'Pin', 'Notes']
+    CATEGORY_CONFIG_PATH = "./CategoryConfig.json"
+    DEFAULT_CATEGORY_COLOR = "#e6e6e6"
 
     # Global dynamic variables
-    category_list = []
     login_data = pd.DataFrame()
     imported_data = pd.DataFrame()
     edit_delete_action = ""
-
+    category_data = {}
 
     def __init__(self):
         app = QApplication(sys.argv)
@@ -40,8 +44,8 @@ class PasswordManager():
         app.processEvents()
 
         self.GetData()
+        self.ReadCategories()
         self.AddMissingCategories()
-        self.FillCategoryList()
         self.FillComboBoxes()
         self.DisplayTable()
 
@@ -79,6 +83,7 @@ class PasswordManager():
 
 
     def ConnectButtons(self):
+        self.ui.pushButtonClearFilters.clicked.connect(self.OnClearFilters)
         self.ui.pushButtonAddNewEntry.clicked.connect(self.OnAddNewEntry)
         self.ui.pushButtonEdit.clicked.connect(self.OnEdit)
         self.ui.pushButtonDelete.clicked.connect(self.OnDelete)
@@ -91,19 +96,34 @@ class PasswordManager():
         self.ui.pushButtonManageCategories.clicked.connect(self.OnManageCategories)
 
 
-    def FillCategoryList(self):
-        # TODO: Read from a category file
-        self.category_list.sort()
+    def ReadCategories(self):
+        importedData = {}
+        try:
+            with open(self.CATEGORY_CONFIG_PATH) as configFile:
+                importedData = json.load(configFile)
+        except json.decoder.JSONDecodeError as e:
+            print(e)
+        except FileNotFoundError as e:
+            print(e)
+        
+        for name, color in importedData.items():
+            colorHexPattern = r"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+            if not color or not bool(match(colorHexPattern, color)):
+                importedData[name] = self.DEFAULT_CATEGORY_COLOR
+
+        self.category_data = importedData
 
     
     def FillComboBoxes(self):
-        self.ui.comboBoxFilterCategory.addItems(self.category_list)
+        self.ui.comboBoxFilterCategory.clear()
+        self.ui.comboBoxFilterCategory.addItems(sorted(self.category_data.keys()))
         self.ui.comboBoxFilterCategory.insertItem(0, self.CATEGORY_SELECT_ALL)
         self.ui.comboBoxFilterCategory.setCurrentIndex(0)
 
-        self.ui.comboBoxCategoryNewEntry.addItems(self.category_list)
+        self.ui.comboBoxCategoryNewEntry.clear()
+        self.ui.comboBoxCategoryNewEntry.addItems(sorted(self.category_data.keys()))
         self.ui.comboBoxCategoryNewEntry.insertItem(0, "")
-        self.ui.comboBoxFilterCategory.setCurrentIndex(0)
+        self.ui.comboBoxCategoryNewEntry.setCurrentIndex(0)
 
 
     def GetData(self):
@@ -116,6 +136,11 @@ class PasswordManager():
         
     def SaveData(self):
         self.login_data.to_parquet("./Login_Data.parquet", index = False)
+
+
+    def OnClearFilters(self):
+        # TODO: Clear filters
+        print("Clearing filters")
 
 
     def OnImportData(self):
@@ -164,10 +189,10 @@ class PasswordManager():
         self.imported_data = self.imported_data.fillna("")
 
         importFileObj = ImportFileOptions()
-        importFileObj.dialogClosed.connect(self.OnImportFileDialogClosed)
+        importFileObj.dialogClosedSignal.connect(self.HandleImportFileDialogClosed)
         importFileObj.Dialog.exec()
 
-    def OnImportFileDialogClosed(self, response):
+    def HandleImportFileDialogClosed(self, response):
         if response == "Cancel":
             return
         elif response == "Add":
@@ -223,13 +248,18 @@ class PasswordManager():
     def AddMissingCategories(self):
         anyCategoryAdded = False
         for category in self.login_data['Category']:
-            if category not in self.category_list and category != '':
-                self.category_list.append(category)
+            category = category.title()
+            if category not in self.category_data and category != '':
+                self.category_data[category] = self.DEFAULT_CATEGORY_COLOR
                 anyCategoryAdded = True
 
         if anyCategoryAdded:
-            # TODO: Update category file
-            ...
+            print("Added")
+            try:
+                with open(self.CATEGORY_CONFIG_PATH, "w+") as configFile:
+                    json.dump(self.category_data, configFile, indent=4)
+            except IOError as e:
+                print(e)
 
 
     def OnFilterData(self):
@@ -253,7 +283,26 @@ class PasswordManager():
 
         
     def OnManageCategories(self):
-        print("Manage categories")
+        categoriesObj = ManageCategories.ManageCategories(self.category_data)
+        categoriesObj.differenceMapSignal.connect(self.HandleDifferenceMap)
+        categoriesObj.updatedDataSignal.connect(self.HandleUpdatedData)
+        categoriesObj.Dialog.exec()
+
+    def HandleDifferenceMap(self, differenceMap):
+        for row in range(self.ui.tableWidgetLoginData.rowCount()):
+            categoryCell = self.ui.tableWidgetLoginData.item(row, self.CATEGORY_COLUMN)
+            if categoryCell.text() in differenceMap:
+                if differenceMap[categoryCell.text()]["Action"] == "Edit":
+                    categoryCell.setText(differenceMap[categoryCell.text()]["NewName"])
+                    categoryCell.setBackground(QtGui.QColor(differenceMap[categoryCell.text()]["NewColor"]))
+                elif differenceMap[categoryCell.text()]["Action"] == "Delete":
+                    categoryCell.setText("")
+                    categoryCell.setBackground(QtGui.QColor(self.DEFAULT_CATEGORY_COLOR))
+
+    def HandleUpdatedData(self, updatedData):
+        self.category_data = updatedData
+        self.FillComboBoxes()
+
 
 
     def OnRemoveDuplicates(self):
@@ -342,7 +391,9 @@ class PasswordManager():
 
         for row in range(self.ui.tableWidgetLoginData.rowCount()):
             comboBox = QComboBox()
-            comboBox.addItems(self.category_list)
+            comboBox.addItems(sorted(self.category_data.keys()))
+            originalCategory = self.ui.tableWidgetLoginData.item(row, self.CATEGORY_COLUMN)
+            comboBox.setCurrentText(originalCategory.text())
             self.ui.tableWidgetLoginData.setCellWidget(row, self.CATEGORY_COLUMN, comboBox)
 
     def OnConfirm(self):
@@ -437,7 +488,16 @@ class PasswordManager():
         dataList = self.login_data.values.tolist()
         for row in range(len(dataList)):
             for col in range(len(dataList[0])):
-                self.ui.tableWidgetLoginData.setItem(row, col, QTableWidgetItem(str(dataList[row][col])))
+                qTableWidgetItem = QTableWidgetItem(str(dataList[row][col]))
+                if col == self.CATEGORY_COLUMN:
+                    qTableWidgetItem.setText(qTableWidgetItem.text().title())
+                    if qTableWidgetItem.text() in self.category_data:
+                        qTableWidgetItem.setBackground(QtGui.QColor(self.category_data[qTableWidgetItem.text()]))
+                    else:
+                        qTableWidgetItem.setBackground(QtGui.QColor(self.DEFAULT_CATEGORY_COLOR))
+                elif col == self.NAME_COLUMN:
+                    qTableWidgetItem.setBackground(QtGui.QColor(255, 228, 196))  # Bisque color
+                self.ui.tableWidgetLoginData.setItem(row, col, qTableWidgetItem)
 
         self.ui.tableWidgetLoginData.repaint()
         self.ui.tableWidgetLoginData.resizeColumnsToContents()
@@ -445,11 +505,6 @@ class PasswordManager():
         if self.LastColumnFits():
             self.ui.tableWidgetLoginData.horizontalHeader().setSectionResizeMode(self.ui.tableWidgetLoginData.columnCount() - 1, QtWidgets.QHeaderView.ResizeMode.Stretch)
             self.ui.tableWidgetLoginData.horizontalHeader().setStretchLastSection(True)
-
-        for row in range(self.ui.tableWidgetLoginData.rowCount()):
-            item = self.ui.tableWidgetLoginData.item(row, self.NAME_COLUMN)
-            if item:
-                item.setBackground(QtGui.QColor(255, 228, 196))  # Bisque color
 
         self.ui.tableWidgetLoginData.horizontalHeader().setStyleSheet("QHeaderView::section { background-color: lightblue; color: black; }")
 
@@ -512,9 +567,9 @@ class PasswordManager():
 
     def OnGeneratePassword(self):
         self.ClearStatusBar()
-        PasswordObj = PasswordGenerator()
-        self.ui.lineEditPasswordNewEntry.setText(PasswordObj.GetPassword())
-        if PasswordObj.GetPassword() != "":
+        passwordObj = PasswordGenerator()
+        self.ui.lineEditPasswordNewEntry.setText(passwordObj.GetPassword())
+        if passwordObj.GetPassword() != "":
             self.UpdateStatusBar("Password generated")
 
 
@@ -527,14 +582,14 @@ class PasswordManager():
         self.status_bar.clearMessage()
 
 
-class ImportFileOptions(QtWidgets.QDialog):
-    dialogClosed = pyqtSignal(str)
+class ImportFileOptions(QDialog):
+    dialogClosedSignal = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
 
         # Create Password Generator Dialog
-        self.Dialog = QtWidgets.QDialog()
+        self.Dialog = QDialog()
         self.ui = ImportFileOptionsGUI.Ui_Dialog()
         self.ui.setupUi(self.Dialog)
         self.AdditionalUISetup()
@@ -559,13 +614,13 @@ class ImportFileOptions(QtWidgets.QDialog):
         
     def OnConfirm(self):
         if self.ui.radioButtonImportAdd.isChecked():
-            self.dialogClosed.emit("Add")
+            self.dialogClosedSignal.emit("Add")
         elif self.ui.radioButtonImportReplace.isChecked():
-            self.dialogClosed.emit("Replace")
+            self.dialogClosedSignal.emit("Replace")
         self.CloseDialog()
 
     def OnCancel(self):
-        self.dialogClosed.emit("Cancel")
+        self.dialogClosedSignal.emit("Cancel")
         self.CloseDialog()    
         
     def CloseDialog(self):

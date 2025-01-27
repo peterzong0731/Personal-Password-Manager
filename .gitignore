@@ -1,5 +1,5 @@
-
-*.pyc
-Login_Data.parquet
+/__pycache__
 /build
 *.spec
+Login_Data.parquet
+CategoryConfig.json
