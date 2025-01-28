@@ -1,16 +1,15 @@
-from random import SystemRandom
-import sys
-from PasswordManagerGUI import *
-import GeneratePasswordGUI
-import ImportFileOptionsGUI
-import ManageCategories
-import pandas as pd
-from PyQt6 import QtGui
-from PyQt6.QtWidgets import QApplication, QMainWindow, QAbstractItemView, QTableWidget, QTableWidgetItem, QFileDialog, QStatusBar, QComboBox, QColorDialog, QDialog
-from PyQt6.QtCore import pyqtSignal
-import os
 import json
-from re import match
+import os
+import pandas as pd
+import re
+import sys
+from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import QApplication, QAbstractItemView, QComboBox, QFileDialog, QMainWindow, QStatusBar, QTableWidget, QTableWidgetItem
+
+from PasswordManagerGUI import *
+import GeneratePasswordPackage.GeneratePassword as GeneratePassword
+import ImportFileOptionsPackage.ImportFileOptions as ImportFileOptions
+import ManageCategoriesPackage.ManageCategories as ManageCategories
 
 # python -m PyQt6.uic.pyuic -x PasswordManager.ui -o PasswordManagerGUICopy.py
 # python -m PyInstaller --onefile --noconsole --distpath ~/Documents PasswordManager.py
@@ -22,7 +21,7 @@ class PasswordManager():
     EMAIL_COLUMN = 3
     CATEGORY_SELECT_ALL = "Select All"
     EXPECTED_COLUMNS = ['Category', 'Name', 'Username', 'Email', 'Password', 'Pin', 'Notes']
-    CATEGORY_CONFIG_PATH = "./CategoryConfig.json"
+    CATEGORY_CONFIG_PATH = "./Data/CategoryConfig.json"
     DEFAULT_CATEGORY_COLOR = "#e6e6e6"
 
     # Global dynamic variables
@@ -108,7 +107,7 @@ class PasswordManager():
         
         for name, color in importedData.items():
             colorHexPattern = r"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
-            if not color or not bool(match(colorHexPattern, color)):
+            if not color or not bool(re.match(colorHexPattern, color)):
                 importedData[name] = self.DEFAULT_CATEGORY_COLOR
 
         self.category_data = importedData
@@ -127,20 +126,22 @@ class PasswordManager():
 
 
     def GetData(self):
-        if os.path.isfile("./Login_Data.parquet"):
-            self.login_data = pd.read_parquet("./Login_Data.parquet")
+        if os.path.isfile("./Data/Login_Data.parquet"):
+            self.login_data = pd.read_parquet("./Data/Login_Data.parquet")
             # TODO: Check for data quality. Fill in missing columns with blank, drop extra columns
         else:
             self.login_data = pd.DataFrame(columns = self.EXPECTED_COLUMNS)
 
         
     def SaveData(self):
-        self.login_data.to_parquet("./Login_Data.parquet", index = False)
+        self.login_data.to_parquet("./Data/Login_Data.parquet", index = False)
 
 
     def OnClearFilters(self):
-        # TODO: Clear filters
-        print("Clearing filters")
+        self.ui.comboBoxFilterCategory.setCurrentIndex(0)
+        self.ui.lineEditNameSearch.setText("")
+        self.ui.lineEditEmailSearch.setText("")
+        self.UpdateStatusBar("Filters cleared")
 
 
     def OnImportData(self):
@@ -188,7 +189,7 @@ class PasswordManager():
                 
         self.imported_data = self.imported_data.fillna("")
 
-        importFileObj = ImportFileOptions()
+        importFileObj = ImportFileOptions.ImportFileOptionsClass()
         importFileObj.dialogClosedSignal.connect(self.HandleImportFileDialogClosed)
         importFileObj.Dialog.exec()
 
@@ -283,7 +284,7 @@ class PasswordManager():
 
         
     def OnManageCategories(self):
-        categoriesObj = ManageCategories.ManageCategories(self.category_data)
+        categoriesObj = ManageCategories.ManageCategoriesClass(self.category_data)
         categoriesObj.differenceMapSignal.connect(self.HandleDifferenceMap)
         categoriesObj.updatedDataSignal.connect(self.HandleUpdatedData)
         categoriesObj.Dialog.exec()
@@ -294,10 +295,10 @@ class PasswordManager():
             if categoryCell.text() in differenceMap:
                 if differenceMap[categoryCell.text()]["Action"] == "Edit":
                     categoryCell.setText(differenceMap[categoryCell.text()]["NewName"])
-                    categoryCell.setBackground(QtGui.QColor(differenceMap[categoryCell.text()]["NewColor"]))
+                    categoryCell.setBackground(QColor(differenceMap[categoryCell.text()]["NewColor"]))
                 elif differenceMap[categoryCell.text()]["Action"] == "Delete":
                     categoryCell.setText("")
-                    categoryCell.setBackground(QtGui.QColor(self.DEFAULT_CATEGORY_COLOR))
+                    categoryCell.setBackground(QColor(self.DEFAULT_CATEGORY_COLOR))
 
     def HandleUpdatedData(self, updatedData):
         self.category_data = updatedData
@@ -450,7 +451,7 @@ class PasswordManager():
             return
 
         if self.login_data.isin(newEntryData).all(axis=1).any():
-            self.UpdateStatusBar("Failed to add entry. This is a duplicate entry that already exists")
+            self.UpdateStatusBar("Failed to add entry. This is a duplicate entry that already exists", "red")
             return
         
         newEntryDF = pd.DataFrame(newEntryData)
@@ -492,11 +493,11 @@ class PasswordManager():
                 if col == self.CATEGORY_COLUMN:
                     qTableWidgetItem.setText(qTableWidgetItem.text().title())
                     if qTableWidgetItem.text() in self.category_data:
-                        qTableWidgetItem.setBackground(QtGui.QColor(self.category_data[qTableWidgetItem.text()]))
+                        qTableWidgetItem.setBackground(QColor(self.category_data[qTableWidgetItem.text()]))
                     else:
-                        qTableWidgetItem.setBackground(QtGui.QColor(self.DEFAULT_CATEGORY_COLOR))
+                        qTableWidgetItem.setBackground(QColor(self.DEFAULT_CATEGORY_COLOR))
                 elif col == self.NAME_COLUMN:
-                    qTableWidgetItem.setBackground(QtGui.QColor(255, 228, 196))  # Bisque color
+                    qTableWidgetItem.setBackground(QColor(255, 228, 196))  # Bisque color
                 self.ui.tableWidgetLoginData.setItem(row, col, qTableWidgetItem)
 
         self.ui.tableWidgetLoginData.repaint()
@@ -567,7 +568,9 @@ class PasswordManager():
 
     def OnGeneratePassword(self):
         self.ClearStatusBar()
-        passwordObj = PasswordGenerator()
+        passwordObj = GeneratePassword.GeneratePasswordClass()
+        passwordObj.Dialog.exec()
+
         self.ui.lineEditPasswordNewEntry.setText(passwordObj.GetPassword())
         if passwordObj.GetPassword() != "":
             self.UpdateStatusBar("Password generated")
@@ -580,145 +583,6 @@ class PasswordManager():
     
     def ClearStatusBar(self):
         self.status_bar.clearMessage()
-
-
-class ImportFileOptions(QDialog):
-    dialogClosedSignal = pyqtSignal(str)
-
-    def __init__(self):
-        super().__init__()
-
-        # Create Password Generator Dialog
-        self.Dialog = QDialog()
-        self.ui = ImportFileOptionsGUI.Ui_Dialog()
-        self.ui.setupUi(self.Dialog)
-        self.AdditionalUISetup()
-        self.ConnectButtons()
-
-
-    def AdditionalUISetup(self):
-        self.ui.radioButtonImportAdd.clicked.connect(self.OnRadioButtonToggled)
-        self.ui.radioButtonImportReplace.clicked.connect(self.OnRadioButtonToggled)
-        self.ui.radioButtonImportAdd.click()
-
-    def ConnectButtons(self):
-        self.ui.pushButtonImportConfirm.clicked.connect(self.OnConfirm)
-        self.ui.pushButtonImportCancel.clicked.connect(self.OnCancel)
-
-    def OnRadioButtonToggled(self):
-        if self.ui.radioButtonImportAdd.isChecked():
-            self.ui.labelImportDesc.setText("This will only add new, unique entries from the selected file to your login data")
-        elif self.ui.radioButtonImportReplace.isChecked():
-            self.ui.labelImportDesc.setText("This will replace all your current login data with the new data from the selected file")
-
-        
-    def OnConfirm(self):
-        if self.ui.radioButtonImportAdd.isChecked():
-            self.dialogClosedSignal.emit("Add")
-        elif self.ui.radioButtonImportReplace.isChecked():
-            self.dialogClosedSignal.emit("Replace")
-        self.CloseDialog()
-
-    def OnCancel(self):
-        self.dialogClosedSignal.emit("Cancel")
-        self.CloseDialog()    
-        
-    def CloseDialog(self):
-        self.Dialog.close()
-
-
-class PasswordGenerator():
-    def __init__(self):
-        # All possible characters in a password
-        self.lowercaseLetters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
-        self.uppercaseLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
-        self.numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-        self.specialSymbols = ['!', '@', '#', '$', '%', '^', '&', '*', '(', ')', ',', '.', '?', '[', ']', '{', '}', '<', '>']
-
-        # Cryptographically secure randomizer
-        self.sys_random = SystemRandom()
-
-        # Create Password Generator Dialog
-        self.Dialog = QtWidgets.QDialog()
-        self.ui = GeneratePasswordGUI.Ui_Dialog()
-        self.ui.setupUi(self.Dialog)
-        self.AdditionalUISetup()
-        self.ConnectButtons()
-        self.GeneratePassword()
-
-        self.Dialog.exec()
-
-
-    def AdditionalUISetup(self):
-        labelOptionsFont = self.ui.labelPwdOptions.font()
-        labelOptionsFont.setPointSize(16)
-        self.ui.labelPwdOptions.setFont(labelOptionsFont)
-
-        self.ui.labelPwdCopiedtoClipboard.setVisible(False)
-
-
-    def ConnectButtons(self):
-        self.ui.pushButtonPwdGeneratePwd.clicked.connect(self.GeneratePassword)
-        self.ui.pushButtonPwdCancel.clicked.connect(self.OnCancel)
-        self.ui.pushButtonPwdOK.clicked.connect(self.CloseDialog)
-
-    def GeneratePassword(self):
-        password = []
-        length = self.ui.spinBoxPwdLen.value()
-        remainingChars = length
-
-        # If the password will contain numbers
-        if self.ui.checkBoxPwdIncludeNumbers.isChecked():
-            numNumbers = self.sys_random.randint(1, length // 2.5)
-            # If the password will contain numbers and symbols
-            if self.ui.checkBoxPwdIncludeSymbols.isChecked():
-                numSymbols = min(self.sys_random.randint(1, length // 2.5), length - 3)
-                remainingChars -= numSymbols
-                randSymbols = self.sys_random.choices(self.specialSymbols, k = numSymbols)
-                password = randSymbols
-
-                numNumbers = min(numNumbers, remainingChars - 2)
-
-
-            remainingChars -= numNumbers
-            password += self.sys_random.choices(self.numbers, k = numNumbers)
-
-        # If the password will contain symbols but not numbers
-        elif self.ui.checkBoxPwdIncludeSymbols.isChecked():
-            numSymbols = min(self.sys_random.randint(1, length // 2.5), length - 2)
-            remainingChars -= numSymbols
-            randSymbols = self.sys_random.choices(self.specialSymbols, k = numSymbols)
-            password = randSymbols
-        
-        password += self.sys_random.choices(self.uppercaseLetters + self.lowercaseLetters, k = remainingChars)
-
-        # Shuffle the password order. Doesn't make it any more random
-        self.sys_random.shuffle(password)
-
-        # If there is a length mismatch, which should not happen
-        if (len(password) != length):
-            print ("Error length mismatch! Expected: " + str(length) + "  Actual: " + str(len(password)))
-
-        # Save the password as a string
-        self.ui.lineEditPwdPassword.setText(''.join(password))
-
-        # Copy password to clipboard
-        clipboard = QApplication.clipboard()
-        clipboard.setText(self.ui.lineEditPwdPassword.text())
-        self.ui.labelPwdCopiedtoClipboard.setVisible(True)
-        self.ui.lineEditPwdPassword.selectAll()
-
-    def GetPassword(self):
-        return self.ui.lineEditPwdPassword.text()
-    
-
-    def CloseDialog(self):
-        self.Dialog.close()
-
-    def OnCancel(self):
-        self.ui.lineEditPwdPassword.setText("")
-        self.CloseDialog()
-    
 
 
 if __name__ == "__main__":

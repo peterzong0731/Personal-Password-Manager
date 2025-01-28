@@ -1,22 +1,21 @@
-from random import SystemRandom
-import sys
-import ManageCategoriesGUI
-import pandas as pd
-from PyQt6 import QtGui
-from PyQt6.QtWidgets import QColorDialog, QDialog, QLabel, QLineEdit, QHBoxLayout, QPushButton
-from PyQt6.QtCore import pyqtSignal, Qt, QTimer
-import os
 import json
-from re import match
+from PyQt6.QtCore import pyqtSignal, Qt, QTimer
+from PyQt6.QtGui import QColor, QMouseEvent
+from PyQt6.QtWidgets import QColorDialog, QDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton
 
-class ManageCategories(QDialog):
-    CATEGORY_CONFIG_PATH = "./CategoryConfig.json"
-    DEFAULT_CATEGORY_COLOR = "#e6e6e6"
+from . import ManageCategoriesGUI
 
+class ManageCategoriesClass(QDialog):
+    # Signals
     differenceMapSignal = pyqtSignal(dict)
     newEntriesSignal = pyqtSignal(list)
     updatedDataSignal = pyqtSignal(dict)
 
+    # Global constants
+    CATEGORY_CONFIG_PATH = "./Data/CategoryConfig.json"
+    DEFAULT_CATEGORY_COLOR = "#e6e6e6"
+
+    # Global dynamic variables
     number_of_categories = 0
     indexed_original_category_data = {}
     category_index = 0
@@ -24,6 +23,7 @@ class ManageCategories(QDialog):
     def __init__(self, categoryData):
         super().__init__()
 
+        # Create Manage Categories dialogs
         self.Dialog = QDialog()
         self.ui = ManageCategoriesGUI.Ui_DialogManageCategories()
         self.ui.setupUi(self.Dialog)
@@ -73,7 +73,7 @@ class ManageCategories(QDialog):
         self.number_of_categories += 1
 
     def CreateColorSquare(self, color):
-        color = QtGui.QColor(color)
+        color = QColor(color)
         colorSquare = QLabel()
         colorSquare.setFixedSize(30, 30)
         colorSquare.setProperty("Color", color.name())
@@ -82,7 +82,7 @@ class ManageCategories(QDialog):
         colorSquare.mousePressEvent = lambda event, color=color, label=colorSquare: self.OpenColorPicker(event, color, label)
         return colorSquare
 
-    def OpenColorPicker(self, event: QtGui.QMouseEvent, color, label):
+    def OpenColorPicker(self, event: QMouseEvent, color, label):
         color = QColorDialog.getColor(color)
         if color.isValid():
             label.setStyleSheet(f"background-color: {color.name()}; border: 1px solid black;")
@@ -143,9 +143,7 @@ class ManageCategories(QDialog):
 
         if len(differenceMap) > 0:
             self.differenceMapSignal.emit(differenceMap)
-        #if len(newEntries) > 0:
-            #self.newEntriesSignal.emit(newEntries)
-        #if len(differenceMap) > 0 or len(newEntries) > 0:
+
         self.updatedDataSignal.emit(noIndexUpdatedCategoryData)
         self.Dialog.close()
 

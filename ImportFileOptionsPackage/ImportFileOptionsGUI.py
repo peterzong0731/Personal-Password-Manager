@@ -9,27 +9,27 @@
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 
-class Ui_Dialog(object):
-    def setupUi(self, Dialog):
-        Dialog.setObjectName("Dialog")
-        Dialog.resize(468, 141)
-        self.verticalLayout_2 = QtWidgets.QVBoxLayout(Dialog)
+class Ui_DialogImportFileOptions(object):
+    def setupUi(self, DialogImportFileOptions):
+        DialogImportFileOptions.setObjectName("DialogImportFileOptions")
+        DialogImportFileOptions.resize(468, 148)
+        self.verticalLayout_2 = QtWidgets.QVBoxLayout(DialogImportFileOptions)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
         self.verticalLayout = QtWidgets.QVBoxLayout()
         self.verticalLayout.setObjectName("verticalLayout")
         self.horizontalLayout = QtWidgets.QHBoxLayout()
         self.horizontalLayout.setObjectName("horizontalLayout")
-        self.labelImportOptions = QtWidgets.QLabel(parent=Dialog)
+        self.labelImportOptions = QtWidgets.QLabel(parent=DialogImportFileOptions)
         self.labelImportOptions.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.labelImportOptions.setObjectName("labelImportOptions")
         self.horizontalLayout.addWidget(self.labelImportOptions)
         self.verticalLayout.addLayout(self.horizontalLayout)
-        self.line = QtWidgets.QFrame(parent=Dialog)
+        self.line = QtWidgets.QFrame(parent=DialogImportFileOptions)
         self.line.setFrameShadow(QtWidgets.QFrame.Shadow.Plain)
         self.line.setFrameShape(QtWidgets.QFrame.Shape.HLine)
         self.line.setObjectName("line")
         self.verticalLayout.addWidget(self.line)
-        self.labelImportDesc = QtWidgets.QLabel(parent=Dialog)
+        self.labelImportDesc = QtWidgets.QLabel(parent=DialogImportFileOptions)
         self.labelImportDesc.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.labelImportDesc.setObjectName("labelImportDesc")
         self.verticalLayout.addWidget(self.labelImportDesc)
@@ -37,11 +37,11 @@ class Ui_Dialog(object):
         self.horizontalLayout_2.setObjectName("horizontalLayout_2")
         spacerItem = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Minimum)
         self.horizontalLayout_2.addItem(spacerItem)
-        self.radioButtonImportAdd = QtWidgets.QRadioButton(parent=Dialog)
+        self.radioButtonImportAdd = QtWidgets.QRadioButton(parent=DialogImportFileOptions)
         self.radioButtonImportAdd.setChecked(True)
         self.radioButtonImportAdd.setObjectName("radioButtonImportAdd")
         self.horizontalLayout_2.addWidget(self.radioButtonImportAdd)
-        self.radioButtonImportReplace = QtWidgets.QRadioButton(parent=Dialog)
+        self.radioButtonImportReplace = QtWidgets.QRadioButton(parent=DialogImportFileOptions)
         self.radioButtonImportReplace.setObjectName("radioButtonImportReplace")
         self.horizontalLayout_2.addWidget(self.radioButtonImportReplace)
         spacerItem1 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Minimum)
@@ -51,10 +51,10 @@ class Ui_Dialog(object):
         self.horizontalLayout_3.setObjectName("horizontalLayout_3")
         spacerItem2 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Minimum)
         self.horizontalLayout_3.addItem(spacerItem2)
-        self.pushButtonImportCancel = QtWidgets.QPushButton(parent=Dialog)
+        self.pushButtonImportCancel = QtWidgets.QPushButton(parent=DialogImportFileOptions)
         self.pushButtonImportCancel.setObjectName("pushButtonImportCancel")
         self.horizontalLayout_3.addWidget(self.pushButtonImportCancel)
-        self.pushButtonImportConfirm = QtWidgets.QPushButton(parent=Dialog)
+        self.pushButtonImportConfirm = QtWidgets.QPushButton(parent=DialogImportFileOptions)
         self.pushButtonImportConfirm.setObjectName("pushButtonImportConfirm")
         self.horizontalLayout_3.addWidget(self.pushButtonImportConfirm)
         spacerItem3 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Minimum)
@@ -64,24 +64,24 @@ class Ui_Dialog(object):
         spacerItem4 = QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Expanding)
         self.verticalLayout_2.addItem(spacerItem4)
 
-        self.retranslateUi(Dialog)
-        QtCore.QMetaObject.connectSlotsByName(Dialog)
+        self.retranslateUi(DialogImportFileOptions)
+        QtCore.QMetaObject.connectSlotsByName(DialogImportFileOptions)
 
-    def retranslateUi(self, Dialog):
+    def retranslateUi(self, DialogImportFileOptions):
         _translate = QtCore.QCoreApplication.translate
-        Dialog.setWindowTitle(_translate("Dialog", "Dialog"))
-        self.labelImportOptions.setText(_translate("Dialog", "Import Options"))
-        self.radioButtonImportAdd.setText(_translate("Dialog", "Add"))
-        self.radioButtonImportReplace.setText(_translate("Dialog", "Replace"))
-        self.pushButtonImportCancel.setText(_translate("Dialog", "Cancel"))
-        self.pushButtonImportConfirm.setText(_translate("Dialog", "Confirm"))
+        DialogImportFileOptions.setWindowTitle(_translate("DialogImportFileOptions", "Dialog"))
+        self.labelImportOptions.setText(_translate("DialogImportFileOptions", "Import Options"))
+        self.radioButtonImportAdd.setText(_translate("DialogImportFileOptions", "Add"))
+        self.radioButtonImportReplace.setText(_translate("DialogImportFileOptions", "Replace"))
+        self.pushButtonImportCancel.setText(_translate("DialogImportFileOptions", "Cancel"))
+        self.pushButtonImportConfirm.setText(_translate("DialogImportFileOptions", "Confirm"))
 
 
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
-    Dialog = QtWidgets.QDialog()
-    ui = Ui_Dialog()
-    ui.setupUi(Dialog)
-    Dialog.show()
+    DialogImportFileOptions = QtWidgets.QDialog()
+    ui = Ui_DialogImportFileOptions()
+    ui.setupUi(DialogImportFileOptions)
+    DialogImportFileOptions.show()
     sys.exit(app.exec())
