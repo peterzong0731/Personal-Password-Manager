@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import re
 import sys
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication, QAbstractItemView, QComboBox, QFileDialog, QMainWindow, QStatusBar, QTableWidget, QTableWidgetItem
 
@@ -19,6 +20,7 @@ class PasswordManager():
     CATEGORY_COLUMN = 0
     NAME_COLUMN = 1
     EMAIL_COLUMN = 3
+    PASSWORD_COLUMN = 4
     CATEGORY_SELECT_ALL = "Select All"
     EXPECTED_COLUMNS = ['Category', 'Name', 'Username', 'Email', 'Password', 'Pin', 'Notes']
     CATEGORY_CONFIG_PATH = "./Data/CategoryConfig.json"
@@ -29,6 +31,7 @@ class PasswordManager():
     imported_data = pd.DataFrame()
     edit_delete_action = ""
     category_data = {}
+    show_passwords = False
 
     def __init__(self):
         app = QApplication(sys.argv)
@@ -74,8 +77,10 @@ class PasswordManager():
         self.ui.pushButtonConfirm.setVisible(False)
 
         self.ui.comboBoxFilterCategory.currentIndexChanged.connect(self.OnFilterData)
-        self.ui.lineEditNameSearch.textChanged.connect(self.OnFilterData)
-        self.ui.lineEditEmailSearch.textChanged.connect(self.OnFilterData)
+        self.ui.lineEditFilterName.textChanged.connect(self.OnFilterData)
+        self.ui.lineEditFilterEmail.textChanged.connect(self.OnFilterData)
+
+        self.ui.checkBoxShowPasswords.stateChanged.connect(self.OnShowPasswords)
 
         self.status_bar = QStatusBar()
         self.MainWindow.setStatusBar(self.status_bar)
@@ -139,8 +144,8 @@ class PasswordManager():
 
     def OnClearFilters(self):
         self.ui.comboBoxFilterCategory.setCurrentIndex(0)
-        self.ui.lineEditNameSearch.setText("")
-        self.ui.lineEditEmailSearch.setText("")
+        self.ui.lineEditFilterName.setText("")
+        self.ui.lineEditFilterEmail.setText("")
         self.UpdateStatusBar("Filters cleared")
 
 
@@ -265,8 +270,8 @@ class PasswordManager():
 
     def OnFilterData(self):
         categoryFilter = self.ui.comboBoxFilterCategory.currentText().lower()
-        nameFilter = self.ui.lineEditNameSearch.text().lower()
-        emailFilter = self.ui.lineEditEmailSearch.text().lower()
+        nameFilter = self.ui.lineEditFilterName.text().lower()
+        emailFilter = self.ui.lineEditFilterEmail.text().lower()
 
         for row in range(self.ui.tableWidgetLoginData.rowCount()):
             itemCategory = self.ui.tableWidgetLoginData.item(row, self.CATEGORY_COLUMN)
@@ -322,23 +327,41 @@ class PasswordManager():
         self.SaveData()
 
 
+    def OnShowPasswords(self):
+        self.show_passwords = self.ui.checkBoxShowPasswords.isChecked()
+        passwords = self.login_data.iloc[:, self.PASSWORD_COLUMN].tolist()
+        for row in range(self.ui.tableWidgetLoginData.rowCount()):
+            self.ui.tableWidgetLoginData.item(row, self.PASSWORD_COLUMN).setText(self.ShowOrHidePassword(passwords[row]))
+
+    def ShowOrHidePassword(self, password):
+            if self.show_passwords:
+                return password
+            return "*" * len(password)
+            
+
     def EnterEditDeleteUI(self):
         self.ui.pushButtonEdit.setVisible(False)
         self.ui.pushButtonDelete.setVisible(False)
         self.ui.pushButtonCancel.setVisible(True)
         self.ui.pushButtonConfirm.setVisible(True)
         
-        self.ui.lineEditNameSearch.setDisabled(True)
-        self.ui.lineEditEmailSearch.setDisabled(True)
+        self.ui.checkBoxShowPasswords.setDisabled(True)
+        self.ui.comboBoxFilterCategory.setDisabled(True)
+        self.ui.lineEditFilterName.setDisabled(True)
+        self.ui.lineEditFilterEmail.setDisabled(True)
         self.ui.lineEditNameNewEntry.setDisabled(True)
         self.ui.lineEditUsernameNewEntry.setDisabled(True)
         self.ui.lineEditEmailNewEntry.setDisabled(True)
         self.ui.lineEditPasswordNewEntry.setDisabled(True)
-        self.ui.pushButtonGenSecPass.setDisabled(True)
         self.ui.lineEditPinNewEntry.setDisabled(True)
         self.ui.lineEditNotesNewEntry.setDisabled(True)
-        self.ui.pushButtonAddNewEntry.setDisabled(True)
+        self.ui.pushButtonClearFilters.setDisabled(True)
+        self.ui.pushButtonManageCategories.setDisabled(True)
+        self.ui.pushButtonRemoveDuplicates.setDisabled(True)
+        self.ui.pushButtonImportData.setDisabled(True)
         self.ui.pushButtonExportData.setDisabled(True)
+        self.ui.pushButtonGenSecPass.setDisabled(True)
+        self.ui.pushButtonAddNewEntry.setDisabled(True)
 
         self.ui.lineEditNameNewEntry.setStyleSheet("QLineEdit {color: gray, border: 1px solid gray;}")
         self.ui.lineEditUsernameNewEntry.setStyleSheet("QLineEdit {color: gray, border: 1px solid gray;}")
@@ -355,17 +378,23 @@ class PasswordManager():
         self.ui.pushButtonCancel.setVisible(False)
         self.ui.pushButtonConfirm.setVisible(False)
         
-        self.ui.lineEditNameSearch.setEnabled(True)
-        self.ui.lineEditEmailSearch.setEnabled(True)
+        self.ui.checkBoxShowPasswords.setEnabled(True)
+        self.ui.comboBoxFilterCategory.setEnabled(True)
+        self.ui.lineEditFilterName.setEnabled(True)
+        self.ui.lineEditFilterEmail.setEnabled(True)
         self.ui.lineEditNameNewEntry.setEnabled(True)
         self.ui.lineEditUsernameNewEntry.setEnabled(True)
         self.ui.lineEditEmailNewEntry.setEnabled(True)
         self.ui.lineEditPasswordNewEntry.setEnabled(True)
-        self.ui.pushButtonGenSecPass.setEnabled(True)
         self.ui.lineEditPinNewEntry.setEnabled(True)
         self.ui.lineEditNotesNewEntry.setEnabled(True)
-        self.ui.pushButtonAddNewEntry.setEnabled(True)
+        self.ui.pushButtonClearFilters.setEnabled(True)
+        self.ui.pushButtonManageCategories.setEnabled(True)
+        self.ui.pushButtonRemoveDuplicates.setEnabled(True)
+        self.ui.pushButtonImportData.setEnabled(True)
         self.ui.pushButtonExportData.setEnabled(True)
+        self.ui.pushButtonGenSecPass.setEnabled(True)
+        self.ui.pushButtonAddNewEntry.setEnabled(True)
 
         self.ui.lineEditNameNewEntry.setStyleSheet("QLineEdit {color: white, border: 1px solid gray;}")
         self.ui.lineEditUsernameNewEntry.setStyleSheet("QLineEdit {color: white, border: 1px solid gray;}")
@@ -489,16 +518,22 @@ class PasswordManager():
         dataList = self.login_data.values.tolist()
         for row in range(len(dataList)):
             for col in range(len(dataList[0])):
-                qTableWidgetItem = QTableWidgetItem(str(dataList[row][col]))
+                stringData = str(dataList[row][col])
+                qTableWidgetItem = QTableWidgetItem(stringData)
                 if col == self.CATEGORY_COLUMN:
-                    qTableWidgetItem.setText(qTableWidgetItem.text().title())
+                    qTableWidgetItem.setText(stringData.title())
                     if qTableWidgetItem.text() in self.category_data:
                         qTableWidgetItem.setBackground(QColor(self.category_data[qTableWidgetItem.text()]))
                     else:
                         qTableWidgetItem.setBackground(QColor(self.DEFAULT_CATEGORY_COLOR))
                 elif col == self.NAME_COLUMN:
                     qTableWidgetItem.setBackground(QColor(255, 228, 196))  # Bisque color
+                elif col == self.PASSWORD_COLUMN:
+                    qTableWidgetItem.setData(Qt.ItemDataRole.UserRole, stringData)
+                    qTableWidgetItem.setText(self.ShowOrHidePassword(qTableWidgetItem.data(Qt.ItemDataRole.UserRole)))
+
                 self.ui.tableWidgetLoginData.setItem(row, col, qTableWidgetItem)
+
 
         self.ui.tableWidgetLoginData.repaint()
         self.ui.tableWidgetLoginData.resizeColumnsToContents()
@@ -511,17 +546,19 @@ class PasswordManager():
 
 
     def ApplyEdits(self):       
-        numRows = self.ui.tableWidgetLoginData.rowCount()
-        numColumns = self.ui.tableWidgetLoginData.columnCount()
         updatedData = []
-
-        for row in range(numRows):
-            row_data = []
-            for col in range(numColumns):
+        for row in range(self.ui.tableWidgetLoginData.rowCount()):
+            rowData = []
+            for col in range(self.ui.tableWidgetLoginData.columnCount()):
                 item = self.ui.tableWidgetLoginData.item(row, col)
-                if item:
-                    row_data.append(item.text())
-            updatedData.append(row_data)
+                cellData = item.text()
+                if col == self.PASSWORD_COLUMN:
+                    if re.match("\*+", cellData):
+                        cellData = item.data(Qt.ItemDataRole.UserRole)
+                    else:
+                        item.setData(Qt.ItemDataRole.UserRole, item.text())
+                rowData.append(cellData)
+            updatedData.append(rowData)
 
         updatedDataFrame = pd.DataFrame(updatedData, columns = self.EXPECTED_COLUMNS)
 

@@ -5,6 +5,8 @@ from PyQt6.QtWidgets import QColorDialog, QDialog, QHBoxLayout, QLabel, QLineEdi
 
 from . import ManageCategoriesGUI
 
+# python -m PyQt6.uic.pyuic -x ManageCategories.ui -o ManageCategoriesGUICopy.py
+
 class ManageCategoriesClass(QDialog):
     # Signals
     differenceMapSignal = pyqtSignal(dict)

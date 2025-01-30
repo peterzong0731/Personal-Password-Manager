@@ -3,6 +3,8 @@ from PyQt6.QtWidgets import QDialog
 
 from . import ImportFileOptionsGUI
 
+# python -m PyQt6.uic.pyuic -x ImportFileOptions.ui -o ImportFileOptionsGUICopy.py
+
 class ImportFileOptionsClass(QDialog):
     # Signals
     dialogClosedSignal = pyqtSignal(str)
