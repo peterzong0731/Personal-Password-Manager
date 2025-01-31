@@ -23,7 +23,12 @@ class PasswordManager():
     PASSWORD_COLUMN = 4
     CATEGORY_SELECT_ALL = "Select All"
     EXPECTED_COLUMNS = ['Category', 'Name', 'Username', 'Email', 'Password', 'Pin', 'Notes']
-    CATEGORY_CONFIG_PATH = "./Data/CategoryConfig.json"
+    if getattr(sys, 'frozen', False): #Running as an executable
+        LOGIN_DATA_PATH = os.path.join(sys._MEIPASS, "Data", "Login_data.parquet")
+        CATEGORY_CONFIG_PATH = os.path.join(sys._MEIPASS, "Data", "CategoryConfig.json")
+    else: # Running as a script
+        LOGIN_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data", "Login_data.parquet")
+        CATEGORY_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data", "CategoryConfig.json")
     DEFAULT_CATEGORY_COLOR = "#e6e6e6"
 
     # Global dynamic variables
@@ -105,9 +110,7 @@ class PasswordManager():
         try:
             with open(self.CATEGORY_CONFIG_PATH) as configFile:
                 importedData = json.load(configFile)
-        except json.decoder.JSONDecodeError as e:
-            print(e)
-        except FileNotFoundError as e:
+        except Exception as e:
             print(e)
         
         for name, color in importedData.items():
@@ -131,9 +134,16 @@ class PasswordManager():
 
 
     def GetData(self):
-        if os.path.isfile("./Data/Login_Data.parquet"):
-            self.login_data = pd.read_parquet("./Data/Login_Data.parquet")
-            # TODO: Check for data quality. Fill in missing columns with blank, drop extra columns
+        if os.path.isfile(self.LOGIN_DATA_PATH):
+            loginDataFile = pd.read_parquet(self.LOGIN_DATA_PATH)
+            missingColumns = set(self.EXPECTED_COLUMNS) - set(loginDataFile.columns)
+            if len(missingColumns) > 0:
+                self.UpdateStatusBar("Data file is malformed, attempting to fix.", "red")
+                for col in missingColumns:
+                    loginDataFile[col] = ""
+            loginDataFile = loginDataFile[self.EXPECTED_COLUMNS]
+            loginDataFile = loginDataFile.fillna("")
+            self.login_data = loginDataFile
         else:
             self.login_data = pd.DataFrame(columns = self.EXPECTED_COLUMNS)
 
@@ -179,8 +189,6 @@ class PasswordManager():
                 self.UpdateStatusBar(f"Invalid file selected, '{fileType}' is not a valid file type", "red")
                 return
             
-        # TODO: For missing columns, fill with blank. Error on additional columns
-        # Check if the columns match up
         if set(self.EXPECTED_COLUMNS) != set(self.imported_data.columns):
             missingColumns = set(self.EXPECTED_COLUMNS) - set(self.imported_data.columns)
             extraColumns = set(self.imported_data.columns) - set(self.EXPECTED_COLUMNS)
@@ -192,6 +200,7 @@ class PasswordManager():
             self.UpdateStatusBar(statusBarMessage, "red")
             return
                 
+        self.imported_data = self.imported_data[self.EXPECTED_COLUMNS]
         self.imported_data = self.imported_data.fillna("")
 
         importFileObj = ImportFileOptions.ImportFileOptionsClass()
@@ -308,7 +317,6 @@ class PasswordManager():
     def HandleUpdatedData(self, updatedData):
         self.category_data = updatedData
         self.FillComboBoxes()
-
 
 
     def OnRemoveDuplicates(self):
