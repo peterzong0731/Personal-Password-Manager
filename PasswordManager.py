@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import re
 import sys
+import threading
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication, QAbstractItemView, QComboBox, QFileDialog, QMainWindow, QStatusBar, QTableWidget, QTableWidgetItem
@@ -11,6 +12,7 @@ from PasswordManagerGUI import *
 import GeneratePasswordPackage.GeneratePassword as GeneratePassword
 import ImportFileOptionsPackage.ImportFileOptions as ImportFileOptions
 import ManageCategoriesPackage.ManageCategories as ManageCategories
+import ManageDataBackups
 
 # python -m PyQt6.uic.pyuic -x PasswordManager.ui -o PasswordManagerGUICopy.py
 # python -m PyInstaller --onefile --noconsole --distpath ~/Documents PasswordManager.py
@@ -55,6 +57,7 @@ class PasswordManager():
         self.AddMissingCategories()
         self.FillComboBoxes()
         self.DisplayTable()
+        self.ManageDataBackups()
 
         sys.exit(app.exec())
 
@@ -105,6 +108,14 @@ class PasswordManager():
         self.ui.pushButtonManageCategories.clicked.connect(self.OnManageCategories)
 
 
+    def ManageDataBackups(self):
+        try:
+            backupsThread = threading.Thread(target = ManageDataBackups.ManageDataBackupsClass, args = (self.login_data,), daemon = True)
+            backupsThread.start()
+        except Exception as e:
+            print(e)
+
+
     def ReadCategories(self):
         importedData = {}
         try:
@@ -149,7 +160,7 @@ class PasswordManager():
 
         
     def SaveData(self):
-        self.login_data.to_parquet("./Data/Login_Data.parquet", index = False)
+        self.login_data.to_parquet(self.LOGIN_DATA_PATH, index = False)
 
 
     def OnClearFilters(self):

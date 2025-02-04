@@ -1,4 +1,5 @@
 **/__pycache__
-/build
 *.spec
+/build
 /Data
+/Data_Backups
