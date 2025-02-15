@@ -12,7 +12,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 class Ui_DialogManageCategories(object):
     def setupUi(self, DialogManageCategories):
         DialogManageCategories.setObjectName("DialogManageCategories")
-        DialogManageCategories.resize(561, 298)
+        DialogManageCategories.resize(615, 364)
         self.verticalLayout_2 = QtWidgets.QVBoxLayout(DialogManageCategories)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
         self.verticalLayout = QtWidgets.QVBoxLayout()
@@ -30,7 +30,7 @@ class Ui_DialogManageCategories(object):
         self.scrollArea.setWidgetResizable(True)
         self.scrollArea.setObjectName("scrollArea")
         self.scrollAreaWidgetContents = QtWidgets.QWidget()
-        self.scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 416, 138))
+        self.scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 470, 194))
         self.scrollAreaWidgetContents.setObjectName("scrollAreaWidgetContents")
         self.verticalLayout_3 = QtWidgets.QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout_3.setObjectName("verticalLayout_3")
@@ -57,6 +57,7 @@ class Ui_DialogManageCategories(object):
         self.verticalLayout.addWidget(self.line)
         self.labelErrorMessage = QtWidgets.QLabel(parent=DialogManageCategories)
         self.labelErrorMessage.setEnabled(True)
+        self.labelErrorMessage.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.labelErrorMessage.setObjectName("labelErrorMessage")
         self.verticalLayout.addWidget(self.labelErrorMessage)
         self.horizontalLayout_2 = QtWidgets.QHBoxLayout()

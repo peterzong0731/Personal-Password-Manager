@@ -1,4 +1,6 @@
+import functools
 import json
+import logging
 import os
 import pandas as pd
 import re
@@ -11,12 +13,34 @@ from PyQt6.QtWidgets import QApplication, QAbstractItemView, QComboBox, QFileDia
 from PasswordManagerGUI import *
 import GeneratePasswordPackage.GeneratePassword as GeneratePassword
 import ImportFileOptionsPackage.ImportFileOptions as ImportFileOptions
+import LoggerSetup
 import ManageCategoriesPackage.ManageCategories as ManageCategories
 import ManageDataBackups
+
+# TODO: Application preferences like default category color, only show category color on column or across entire row, 
+# default password settings, show/hide password on startup, etc
 
 # python -m PyQt6.uic.pyuic -x PasswordManager.ui -o PasswordManagerGUICopy.py
 # python -m PyInstaller --onefile --noconsole --distpath ~/Documents PasswordManager.py
 
+def log_function_call(func):
+    """Decorator to log function calls with arguments and return values."""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        logging.info(f"Calling: {func.__name__}()")
+        logging.debug(f"Calling : {func.__name__}() | Args: {args} | Kwargs: {kwargs}")
+        return func(*args, **kwargs)
+    return wrapper
+
+def log_all_methods(cls):
+    """Class decorator to log all method calls."""
+    ignoredFunctions = ["ShowOrHidePassword"]
+    for attr_name, attr in cls.__dict__.items():
+        if callable(attr) and not attr_name.startswith("__") and attr_name not in ignoredFunctions:
+            setattr(cls, attr_name, log_function_call(attr))
+    return cls
+
+@log_all_methods
 class PasswordManager():
     # Global constants
     CATEGORY_COLUMN = 0
@@ -26,11 +50,14 @@ class PasswordManager():
     CATEGORY_SELECT_ALL = "Select All"
     EXPECTED_COLUMNS = ['Category', 'Name', 'Username', 'Email', 'Password', 'Pin', 'Notes']
     if getattr(sys, 'frozen', False): #Running as an executable
-        LOGIN_DATA_PATH = os.path.join(sys._MEIPASS, "Data", "Login_data.parquet")
-        CATEGORY_CONFIG_PATH = os.path.join(sys._MEIPASS, "Data", "CategoryConfig.json")
+        LOGIN_DATA_PATH = os.path.join(sys.executable, "Data", "Login_data.parquet")
+        CATEGORY_CONFIG_PATH = os.path.join(sys.executable, "Data", "CategoryConfig.json")
+        LOG_FILE_FOLDER = os.path.join(sys.executable, "Logs")
     else: # Running as a script
         LOGIN_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data", "Login_data.parquet")
         CATEGORY_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data", "CategoryConfig.json")
+        LOG_FILE_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Logs")
+    LOG_FILE_PATH = os.path.join(LOG_FILE_FOLDER, "PasswordManager.log")
     DEFAULT_CATEGORY_COLOR = "#e6e6e6"
 
     # Global dynamic variables
@@ -39,8 +66,14 @@ class PasswordManager():
     edit_delete_action = ""
     category_data = {}
     show_passwords = False
+    logger = None
 
     def __init__(self):
+        LoggerSetup.LoggerSetupClass().setupLogger()
+        self.logger = logging.getLogger()
+        self.logger.info("--------------------------------------------------------------")
+        self.logger.info("Application launched")
+        
         app = QApplication(sys.argv)
         self.MainWindow = QMainWindow()
         self.ui = Ui_MainWindow()
@@ -58,6 +91,8 @@ class PasswordManager():
         self.FillComboBoxes()
         self.DisplayTable()
         self.ManageDataBackups()
+
+        self.logger.info("Application loaded")
 
         sys.exit(app.exec())
 
@@ -84,28 +119,28 @@ class PasswordManager():
         self.ui.pushButtonCancel.setVisible(False)
         self.ui.pushButtonConfirm.setVisible(False)
 
-        self.ui.comboBoxFilterCategory.currentIndexChanged.connect(self.OnFilterData)
-        self.ui.lineEditFilterName.textChanged.connect(self.OnFilterData)
-        self.ui.lineEditFilterEmail.textChanged.connect(self.OnFilterData)
+        self.ui.comboBoxFilterCategory.currentIndexChanged.connect(lambda _: self.OnFilterData())
+        self.ui.lineEditFilterName.textChanged.connect(lambda _: self.OnFilterData())
+        self.ui.lineEditFilterEmail.textChanged.connect(lambda _: self.OnFilterData())
 
-        self.ui.checkBoxShowPasswords.stateChanged.connect(self.OnShowPasswords)
+        self.ui.checkBoxShowPasswords.stateChanged.connect(lambda _:self.OnShowPasswords())
 
         self.status_bar = QStatusBar()
         self.MainWindow.setStatusBar(self.status_bar)
 
 
     def ConnectButtons(self):
-        self.ui.pushButtonClearFilters.clicked.connect(self.OnClearFilters)
-        self.ui.pushButtonAddNewEntry.clicked.connect(self.OnAddNewEntry)
-        self.ui.pushButtonEdit.clicked.connect(self.OnEdit)
-        self.ui.pushButtonDelete.clicked.connect(self.OnDelete)
-        self.ui.pushButtonConfirm.clicked.connect(self.OnConfirm)
-        self.ui.pushButtonCancel.clicked.connect(self.OnCancel)
-        self.ui.pushButtonImportData.clicked.connect(self.OnImportData)
-        self.ui.pushButtonExportData.clicked.connect(self.OnExportData)
-        self.ui.pushButtonGenSecPass.clicked.connect(self.OnGeneratePassword)
-        self.ui.pushButtonRemoveDuplicates.clicked.connect(self.OnRemoveDuplicates)
-        self.ui.pushButtonManageCategories.clicked.connect(self.OnManageCategories)
+        self.ui.pushButtonClearFilters.clicked.connect(lambda _: self.OnClearFilters())
+        self.ui.pushButtonAddNewEntry.clicked.connect(lambda _: self.OnAddNewEntry())
+        self.ui.pushButtonEdit.clicked.connect(lambda _: self.OnEdit())
+        self.ui.pushButtonDelete.clicked.connect(lambda _: self.OnDelete())
+        self.ui.pushButtonConfirm.clicked.connect(lambda _: self.OnConfirm())
+        self.ui.pushButtonCancel.clicked.connect(lambda _: self.OnCancel())
+        self.ui.pushButtonImportData.clicked.connect(lambda _: self.OnImportData())
+        self.ui.pushButtonExportData.clicked.connect(lambda _: self.OnExportData())
+        self.ui.pushButtonGenSecPass.clicked.connect(lambda _: self.OnGeneratePassword())
+        self.ui.pushButtonRemoveDuplicates.clicked.connect(lambda _: self.OnRemoveDuplicates())
+        self.ui.pushButtonManageCategories.clicked.connect(lambda _: self.OnManageCategories())
 
 
     def ManageDataBackups(self):
@@ -113,7 +148,7 @@ class PasswordManager():
             backupsThread = threading.Thread(target = ManageDataBackups.ManageDataBackupsClass, args = (self.login_data,), daemon = True)
             backupsThread.start()
         except Exception as e:
-            print(e)
+            self.logger.error("Exception with ManageDataBackups:", exc_info=True)
 
 
     def ReadCategories(self):
@@ -121,8 +156,9 @@ class PasswordManager():
         try:
             with open(self.CATEGORY_CONFIG_PATH) as configFile:
                 importedData = json.load(configFile)
+            self.logger.info('Category config file loaded: "%s"', self.CATEGORY_CONFIG_PATH)
         except Exception as e:
-            print(e)
+            self.logger.error("Exception reading category config file:", exc_info=True)
         
         for name, color in importedData.items():
             colorHexPattern = r"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
@@ -133,15 +169,12 @@ class PasswordManager():
 
     
     def FillComboBoxes(self):
+        categories = [self.CATEGORY_SELECT_ALL] + sorted(self.category_data.keys())
         self.ui.comboBoxFilterCategory.clear()
-        self.ui.comboBoxFilterCategory.addItems(sorted(self.category_data.keys()))
-        self.ui.comboBoxFilterCategory.insertItem(0, self.CATEGORY_SELECT_ALL)
-        self.ui.comboBoxFilterCategory.setCurrentIndex(0)
+        self.ui.comboBoxFilterCategory.addItems(categories)
 
         self.ui.comboBoxCategoryNewEntry.clear()
-        self.ui.comboBoxCategoryNewEntry.addItems(sorted(self.category_data.keys()))
-        self.ui.comboBoxCategoryNewEntry.insertItem(0, "")
-        self.ui.comboBoxCategoryNewEntry.setCurrentIndex(0)
+        self.ui.comboBoxCategoryNewEntry.addItems(categories)
 
 
     def GetData(self):
@@ -149,18 +182,23 @@ class PasswordManager():
             loginDataFile = pd.read_parquet(self.LOGIN_DATA_PATH)
             missingColumns = set(self.EXPECTED_COLUMNS) - set(loginDataFile.columns)
             if len(missingColumns) > 0:
-                self.UpdateStatusBar("Data file is malformed, attempting to fix.", "red")
+                self.logger.warning('Source data file "%s" is malformed, attempting to fix', self.LOGIN_DATA_PATH)
+                self.UpdateStatusBar("Source data file is malformed, attempting to fix.", "red")
                 for col in missingColumns:
                     loginDataFile[col] = ""
             loginDataFile = loginDataFile[self.EXPECTED_COLUMNS]
             loginDataFile = loginDataFile.fillna("")
             self.login_data = loginDataFile
         else:
+            self.logger.info("Source data file does not exist, creating empty file")
             self.login_data = pd.DataFrame(columns = self.EXPECTED_COLUMNS)
+            self.SaveData()
+        self.logger.info("Source data loaded")
 
         
     def SaveData(self):
         self.login_data.to_parquet(self.LOGIN_DATA_PATH, index = False)
+        self.logger.info("Login data saved to: %s", self.LOGIN_DATA_PATH)
 
 
     def OnClearFilters(self):
@@ -168,6 +206,7 @@ class PasswordManager():
         self.ui.lineEditFilterName.setText("")
         self.ui.lineEditFilterEmail.setText("")
         self.UpdateStatusBar("Filters cleared")
+        self.logger.info("Filters cleared")
 
 
     def OnImportData(self):
@@ -181,7 +220,10 @@ class PasswordManager():
                                               Parquet (*.parquet);;
                                               All Files (*)""")
         if fileObj[0] == "":
+            self.logger.info("No import data file selected, returning")
             return
+        
+        self.logger.info('Import data file selected: "%s"', fileObj[0])
         
         self.imported_data = None
         fileType = os.path.splitext(fileObj[0])[1]
@@ -197,7 +239,8 @@ class PasswordManager():
             case ".parquet":
                 self.imported_data = pd.read_parquet(fileObj[0])
             case _:
-                self.UpdateStatusBar(f"Invalid file selected, '{fileType}' is not a valid file type", "red")
+                self.logger.warning('Invalid file selected, "%s" is not a supported file type', fileType)
+                self.UpdateStatusBar(f'Invalid file selected, "{fileType}" is not a supported file type', "red")
                 return
             
         if set(self.EXPECTED_COLUMNS) != set(self.imported_data.columns):
@@ -208,6 +251,7 @@ class PasswordManager():
                 statusBarMessage += " Missing columns: [" + ", ".join(missingColumns) + "]."
             if len(extraColumns) > 0:
                 statusBarMessage += " Unexpected columns: [" + ", ".join(missingColumns) + "]."
+            self.logger.warning(statusBarMessage)
             self.UpdateStatusBar(statusBarMessage, "red")
             return
                 
@@ -220,33 +264,34 @@ class PasswordManager():
 
     def HandleImportFileDialogClosed(self, response):
         if response == "Cancel":
+            self.logger.info("Import data canceled")
             return
         elif response == "Add":
             self.login_data = pd.concat([self.login_data, self.imported_data])
             self.login_data = self.login_data.drop_duplicates()
-            self.UpdateStatusBar('Data imported with the "Add" mode')
         elif response == "Replace":
             self.login_data = self.imported_data
-            self.UpdateStatusBar('Data imported with the "Replace" mode')
 
         self.AddMissingCategories()
         self.DisplayTable()
         self.SaveData()
+        self.logger.info('Data imported with the "%s" mode', response)
+        self.UpdateStatusBar(f'Data imported with the "{response}" mode')
 
     def OnExportData(self):
         self.ClearStatusBar()
         defaultFileName = "LoginData.xlsx"
         fileObj =  QFileDialog.getSaveFileName(None, "Save File", defaultFileName, "Excel (*.xlsx);;CSV (*.csv);;JSON (*.json);;XML (*.xml);;Parquet (*.parquet);;All Files (*)")
         if fileObj[0] == "":
+            self.logger.info("No export data file selected, returning")
             return
         
-        # Check if file is in currently in use/open
         if os.path.exists(fileObj[0]):
             try:
                 fd = os.open(fileObj[0], os.O_RDWR | os.O_EXCL)
                 os.close(fd)
-            except OSError as e:
-                print(e)
+            except OSError:
+                self.logger.error("Exception exporting data file:", exc_info=True)
                 self.UpdateStatusBar("Failed to export file because it is currently in use. Please close it and try again.", "red")
                 return
 
@@ -254,21 +299,21 @@ class PasswordManager():
         match fileType:
             case ".xlsx":
                 self.login_data.to_excel(fileObj[0], index = False)
-                self.UpdateStatusBar(".xlsx file exported")
             case ".csv":
                 self.login_data.to_csv(fileObj[0], index = False)
-                self.UpdateStatusBar(".csv file exported")
             case ".json":
                 self.login_data.to_json(fileObj[0], index = False)
-                self.UpdateStatusBar(".json file exported")
             case ".xml":
                 self.login_data.to_xml(fileObj[0], index = False)
-                self.UpdateStatusBar(".xml file exported")
             case ".parquet":
                 self.login_data.to_parquet(fileObj[0], index = False)
-                self.UpdateStatusBar(".parquet file exported")
             case _:
+                self.logger.warning('Invalid file selected, "%s" is not a supported file type', fileType)
                 self.UpdateStatusBar(f"Invalid file selected, '{fileType}' is not a valid file type", "red")
+                return
+        
+        self.logger.info('Data file exported: "%s', fileObj[0])
+        self.UpdateStatusBar(f"{fileType[1:].upper()} file exported")
 
 
     def AddMissingCategories(self):
@@ -280,12 +325,14 @@ class PasswordManager():
                 anyCategoryAdded = True
 
         if anyCategoryAdded:
-            print("Added")
             try:
                 with open(self.CATEGORY_CONFIG_PATH, "w+") as configFile:
                     json.dump(self.category_data, configFile, indent=4)
-            except IOError as e:
-                print(e)
+                self.logger.info("Updated category config file with missing categories")
+            except IOError:
+                self.logger.error("Exception updating category config file with missing categories:", exc_info=True)
+        else:
+            self.logger.info("No missing categories to add")
 
 
     def OnFilterData(self):
@@ -306,28 +353,27 @@ class PasswordManager():
                 self.ui.tableWidgetLoginData.setRowHidden(row, False)
             else:
                 self.ui.tableWidgetLoginData.setRowHidden(row, True)
+        self.logger.info("Filtered entries on: Category = '%s', Name = '%s', Email = '%s'", categoryFilter, nameFilter, emailFilter)
 
         
     def OnManageCategories(self):
         categoriesObj = ManageCategories.ManageCategoriesClass(self.category_data)
-        categoriesObj.differenceMapSignal.connect(self.HandleDifferenceMap)
-        categoriesObj.updatedDataSignal.connect(self.HandleUpdatedData)
+        categoriesObj.updatedCategoriesSignal.connect(self.HandleUpdateCategoriesDailogClosed)
         categoriesObj.Dialog.exec()
 
-    def HandleDifferenceMap(self, differenceMap):
-        for row in range(self.ui.tableWidgetLoginData.rowCount()):
-            categoryCell = self.ui.tableWidgetLoginData.item(row, self.CATEGORY_COLUMN)
-            if categoryCell.text() in differenceMap:
-                if differenceMap[categoryCell.text()]["Action"] == "Edit":
-                    categoryCell.setText(differenceMap[categoryCell.text()]["NewName"])
-                    categoryCell.setBackground(QColor(differenceMap[categoryCell.text()]["NewColor"]))
-                elif differenceMap[categoryCell.text()]["Action"] == "Delete":
-                    categoryCell.setText("")
-                    categoryCell.setBackground(QColor(self.DEFAULT_CATEGORY_COLOR))
+    def HandleUpdateCategoriesDailogClosed(self, differenceMap, updatedCategories):
+        for row in range(len(self.login_data)):
+            categoryText = self.login_data.iloc[row, self.CATEGORY_COLUMN]
+            if categoryText in differenceMap:
+                if differenceMap[categoryText]["Action"] == "Edit":
+                    self.login_data.iloc[row, self.CATEGORY_COLUMN] = differenceMap[categoryText]["NewName"]
+                elif differenceMap[categoryText]["Action"] == "Delete":
+                    self.login_data.iloc[row, self.CATEGORY_COLUMN] = ""
 
-    def HandleUpdatedData(self, updatedData):
-        self.category_data = updatedData
+        self.category_data = updatedCategories
         self.FillComboBoxes()
+        self.DisplayTable()
+        self.SaveData()
 
 
     def OnRemoveDuplicates(self):
@@ -341,9 +387,11 @@ class PasswordManager():
             self.UpdateStatusBar("1 duplicate removed")
         else:
             self.UpdateStatusBar(str(duplicatesDropped) + " duplicates removed")
-
-        self.DisplayTable()
-        self.SaveData()
+        
+        if duplicatesDropped > 0:
+            self.DisplayTable()
+            self.SaveData()
+        self.logger.info("%d duplicates removed", duplicatesDropped)
 
 
     def OnShowPasswords(self):
@@ -351,6 +399,10 @@ class PasswordManager():
         passwords = self.login_data.iloc[:, self.PASSWORD_COLUMN].tolist()
         for row in range(self.ui.tableWidgetLoginData.rowCount()):
             self.ui.tableWidgetLoginData.item(row, self.PASSWORD_COLUMN).setText(self.ShowOrHidePassword(passwords[row]))
+        if self.show_passwords:
+            self.logger.info("Showing all passwords")
+        else:
+            self.logger.info("Hiding all passwords")
 
     def ShowOrHidePassword(self, password):
             if self.show_passwords:
@@ -445,6 +497,13 @@ class PasswordManager():
             comboBox.setCurrentText(originalCategory.text())
             self.ui.tableWidgetLoginData.setCellWidget(row, self.CATEGORY_COLUMN, comboBox)
 
+    def OnDelete(self):
+        self.ClearStatusBar()
+        self.EnterEditDeleteUI()
+        self.ui.label_tableInstructions.setText("Select the rows you want to delete, then press Confirm to save")
+        self.ui.tableWidgetLoginData.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.edit_delete_action = "Delete"
+
     def OnConfirm(self):
         self.ExitEditDeleteUI()
 
@@ -473,96 +532,6 @@ class PasswordManager():
 
         self.ui.tableWidgetLoginData.clearSelection()
         self.ClearStatusBar()
-
-    def OnDelete(self):
-        self.ClearStatusBar()
-        self.EnterEditDeleteUI()
-        self.ui.label_tableInstructions.setText("Select the rows you want to delete, then press Confirm to save")
-        self.ui.tableWidgetLoginData.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.edit_delete_action = "Delete"
-
-    
-    def OnAddNewEntry(self):       
-        newEntryData = {
-                        'Category': [self.ui.comboBoxCategoryNewEntry.currentText()],
-                        'Name': [self.ui.lineEditNameNewEntry.text()],
-                        'Username': [self.ui.lineEditUsernameNewEntry.text()],
-                        'Email': [self.ui.lineEditEmailNewEntry.text()],
-                        'Password': [self.ui.lineEditPasswordNewEntry.text()],
-                        'Pin': [self.ui.lineEditPinNewEntry.text()],
-                        'Notes': [self.ui.lineEditNotesNewEntry.text()]
-                       }
-        
-        if newEntryData['Name'][0].strip() == '':
-            self.UpdateStatusBar("Name can't be empty!", "red")
-            self.ui.lineEditNameNewEntry.setStyleSheet("QLineEdit {border: 1px solid red;}")
-            return
-
-        if self.login_data.isin(newEntryData).all(axis=1).any():
-            self.UpdateStatusBar("Failed to add entry. This is a duplicate entry that already exists", "red")
-            return
-        
-        newEntryDF = pd.DataFrame(newEntryData)
-        self.login_data = pd.concat([self.login_data, newEntryDF], ignore_index = True)
-
-        self.ClearFields()     
-        self.UpdateStatusBar("New entry added")
-        self.ui.lineEditNameNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
-        self.DisplayTable()
-        self.SaveData()
-
-    def ClearFields(self):
-        self.ui.lineEditNameNewEntry.setText("")
-        self.ui.lineEditUsernameNewEntry.setText("")
-        self.ui.lineEditEmailNewEntry.setText("")
-        self.ui.lineEditPasswordNewEntry.setText("")
-        self.ui.lineEditPinNewEntry.setText("")
-        self.ui.lineEditNotesNewEntry.setText("")
-
-
-    def LastColumnFits(self):
-        total_width = self.ui.tableWidgetLoginData.viewport().width()
-        column_width_sum = 0
-
-        for column in range(self.ui.tableWidgetLoginData.columnCount()):
-            column_width_sum += self.ui.tableWidgetLoginData.horizontalHeader().sectionSize(column)
-
-        return total_width >= column_width_sum
-    
-    def DisplayTable(self):
-        self.ui.tableWidgetLoginData.setRowCount(self.login_data.shape[0])
-        self.ui.tableWidgetLoginData.setColumnCount(self.login_data.shape[1])
-        self.ui.tableWidgetLoginData.setHorizontalHeaderLabels(self.login_data.columns)        
-
-        dataList = self.login_data.values.tolist()
-        for row in range(len(dataList)):
-            for col in range(len(dataList[0])):
-                stringData = str(dataList[row][col])
-                qTableWidgetItem = QTableWidgetItem(stringData)
-                if col == self.CATEGORY_COLUMN:
-                    qTableWidgetItem.setText(stringData.title())
-                    if qTableWidgetItem.text() in self.category_data:
-                        qTableWidgetItem.setBackground(QColor(self.category_data[qTableWidgetItem.text()]))
-                    else:
-                        qTableWidgetItem.setBackground(QColor(self.DEFAULT_CATEGORY_COLOR))
-                elif col == self.NAME_COLUMN:
-                    qTableWidgetItem.setBackground(QColor(255, 228, 196))  # Bisque color
-                elif col == self.PASSWORD_COLUMN:
-                    qTableWidgetItem.setData(Qt.ItemDataRole.UserRole, stringData)
-                    qTableWidgetItem.setText(self.ShowOrHidePassword(qTableWidgetItem.data(Qt.ItemDataRole.UserRole)))
-
-                self.ui.tableWidgetLoginData.setItem(row, col, qTableWidgetItem)
-
-
-        self.ui.tableWidgetLoginData.repaint()
-        self.ui.tableWidgetLoginData.resizeColumnsToContents()
-        
-        if self.LastColumnFits():
-            self.ui.tableWidgetLoginData.horizontalHeader().setSectionResizeMode(self.ui.tableWidgetLoginData.columnCount() - 1, QtWidgets.QHeaderView.ResizeMode.Stretch)
-            self.ui.tableWidgetLoginData.horizontalHeader().setStretchLastSection(True)
-
-        self.ui.tableWidgetLoginData.horizontalHeader().setStyleSheet("QHeaderView::section { background-color: lightblue; color: black; }")
-
 
     def ApplyEdits(self):       
         updatedData = []
@@ -596,10 +565,11 @@ class PasswordManager():
                 self.UpdateStatusBar("1 cell edited")
             else:
                 self.UpdateStatusBar(str(mismatchCount) + " cells edited")
-
-            self.SaveData()
-            self.DisplayTable()
-
+            
+            if mismatchCount > 0:
+                self.SaveData()
+                self.DisplayTable()
+            self.logger.info("Edited %d cells", mismatchCount)
 
     def DeleteRows(self):
         selectedRows = set()
@@ -619,17 +589,102 @@ class PasswordManager():
             self.UpdateStatusBar("1 entry deleted")
         else:
             self.UpdateStatusBar(str(len(selectedRows)) + " entries deleted")
+
+        if len(selectedRows) > 0:
+            self.SaveData()
+        self.logger.info("Deleted %d entires", len(selectedRows))
+
+    
+    def OnAddNewEntry(self):       
+        newEntryData = {
+                        'Category': [self.ui.comboBoxCategoryNewEntry.currentText()],
+                        'Name': [self.ui.lineEditNameNewEntry.text()],
+                        'Username': [self.ui.lineEditUsernameNewEntry.text()],
+                        'Email': [self.ui.lineEditEmailNewEntry.text()],
+                        'Password': [self.ui.lineEditPasswordNewEntry.text()],
+                        'Pin': [self.ui.lineEditPinNewEntry.text()],
+                        'Notes': [self.ui.lineEditNotesNewEntry.text()]
+                       }
+        
+        if newEntryData['Name'][0].strip() == '':
+            self.UpdateStatusBar("Name can't be empty!", "red")
+            self.ui.lineEditNameNewEntry.setStyleSheet("QLineEdit {border: 1px solid red;}")
+            self.logger.warning("Failed to add new entry, the name was empty")
+            return
+
+        if self.login_data.isin(newEntryData).all(axis=1).any():
+            self.UpdateStatusBar("Failed to add new entry. This is a duplicate entry that already exists", "red")
+            self.logger.warning("Failed to add new entry because it is a duplicate: %s", newEntryData)
+            return
+        
+        newEntryDF = pd.DataFrame(newEntryData)
+        self.login_data = pd.concat([self.login_data, newEntryDF], ignore_index = True)
+
+        self.ui.lineEditNameNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
+        self.ClearFields()     
+        self.DisplayTable()
         self.SaveData()
+        self.UpdateStatusBar("New entry added")
+        self.logger.info("Added new entry: %s", newEntryData)
+
+    def ClearFields(self):
+        self.ui.lineEditNameNewEntry.setText("")
+        self.ui.lineEditUsernameNewEntry.setText("")
+        self.ui.lineEditEmailNewEntry.setText("")
+        self.ui.lineEditPasswordNewEntry.setText("")
+        self.ui.lineEditPinNewEntry.setText("")
+        self.ui.lineEditNotesNewEntry.setText("")
+
+    
+    def DisplayTable(self):
+        self.ui.tableWidgetLoginData.setRowCount(self.login_data.shape[0])
+        self.ui.tableWidgetLoginData.setColumnCount(self.login_data.shape[1])
+        self.ui.tableWidgetLoginData.setHorizontalHeaderLabels(self.login_data.columns)        
+
+        dataList = self.login_data.values.tolist()
+        for row in range(len(dataList)):
+            for col in range(len(dataList[0])):
+                stringData = str(dataList[row][col])
+                qTableWidgetItem = QTableWidgetItem(stringData)
+                if col == self.CATEGORY_COLUMN:
+                    qTableWidgetItem.setText(stringData.title())
+                    if qTableWidgetItem.text() in self.category_data:
+                        qTableWidgetItem.setBackground(QColor(self.category_data[qTableWidgetItem.text()]))
+                    else:
+                        qTableWidgetItem.setBackground(QColor(self.DEFAULT_CATEGORY_COLOR))
+                elif col == self.NAME_COLUMN:
+                    qTableWidgetItem.setBackground(QColor(255, 228, 196))  # Bisque color
+                elif col == self.PASSWORD_COLUMN:
+                    qTableWidgetItem.setData(Qt.ItemDataRole.UserRole, stringData)
+                    qTableWidgetItem.setText(self.ShowOrHidePassword(qTableWidgetItem.data(Qt.ItemDataRole.UserRole)))
+
+                self.ui.tableWidgetLoginData.setItem(row, col, qTableWidgetItem)
+
+
+        self.ui.tableWidgetLoginData.repaint()
+        self.ui.tableWidgetLoginData.resizeColumnsToContents()
+
+        total_width = self.ui.tableWidgetLoginData.viewport().width()
+        column_width_sum = 0
+        for column in range(self.ui.tableWidgetLoginData.columnCount()):
+            column_width_sum += self.ui.tableWidgetLoginData.horizontalHeader().sectionSize(column)
+        
+        if total_width >= column_width_sum:
+            self.ui.tableWidgetLoginData.horizontalHeader().setSectionResizeMode(self.ui.tableWidgetLoginData.columnCount() - 1, QtWidgets.QHeaderView.ResizeMode.Stretch)
+            self.ui.tableWidgetLoginData.horizontalHeader().setStretchLastSection(True)
+
+        self.ui.tableWidgetLoginData.horizontalHeader().setStyleSheet("QHeaderView::section { background-color: lightblue; color: black; }")
 
 
     def OnGeneratePassword(self):
         self.ClearStatusBar()
         passwordObj = GeneratePassword.GeneratePasswordClass()
+        passwordObj.passwordCopiedSignal.connect(self.HandleGeneratePasswordDialogClosed)
         passwordObj.Dialog.exec()
 
-        self.ui.lineEditPasswordNewEntry.setText(passwordObj.GetPassword())
-        if passwordObj.GetPassword() != "":
-            self.UpdateStatusBar("Password generated")
+    def HandleGeneratePasswordDialogClosed(self, password):
+        self.ui.lineEditPasswordNewEntry.setText(password)
+        self.UpdateStatusBar("Password copied")
 
 
     def UpdateStatusBar(self, message, color="black"):

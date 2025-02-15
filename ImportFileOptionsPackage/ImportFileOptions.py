@@ -1,3 +1,5 @@
+import functools
+import logging
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QDialog
 
@@ -5,6 +7,23 @@ from . import ImportFileOptionsGUI
 
 # python -m PyQt6.uic.pyuic -x ImportFileOptions.ui -o ImportFileOptionsGUICopy.py
 
+def log_function_call(func):
+    """Decorator to log function calls with arguments and return values."""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        logging.info(f"Calling: {func.__name__}()")
+        logging.debug(f"Calling: {func.__name__}() | Args: {args} | Kwargs: {kwargs}")
+        return func(*args, **kwargs)
+    return wrapper
+
+def log_all_methods(cls):
+    """Class decorator to log all method calls."""
+    for attr_name, attr in cls.__dict__.items():
+        if callable(attr) and not attr_name.startswith("__") and not isinstance(attr, pyqtSignal):
+            setattr(cls, attr_name, log_function_call(attr))
+    return cls
+
+@log_all_methods
 class ImportFileOptionsClass(QDialog):
     # Signals
     dialogClosedSignal = pyqtSignal(str)
@@ -21,13 +40,13 @@ class ImportFileOptionsClass(QDialog):
 
 
     def AdditionalUISetup(self):
-        self.ui.radioButtonImportAdd.clicked.connect(self.OnRadioButtonToggled)
-        self.ui.radioButtonImportReplace.clicked.connect(self.OnRadioButtonToggled)
+        self.ui.radioButtonImportAdd.clicked.connect(lambda _: self.OnRadioButtonToggled())
+        self.ui.radioButtonImportReplace.clicked.connect(lambda _: self.OnRadioButtonToggled())
         self.ui.radioButtonImportAdd.click()
 
     def ConnectButtons(self):
-        self.ui.pushButtonImportConfirm.clicked.connect(self.OnConfirm)
-        self.ui.pushButtonImportCancel.clicked.connect(self.OnCancel)
+        self.ui.pushButtonImportConfirm.clicked.connect(lambda _: self.OnConfirm())
+        self.ui.pushButtonImportCancel.clicked.connect(lambda _: self.OnCancel())
 
     def OnRadioButtonToggled(self):
         if self.ui.radioButtonImportAdd.isChecked():
