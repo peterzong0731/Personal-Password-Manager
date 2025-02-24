@@ -16,9 +16,8 @@ import ImportFileOptionsPackage.ImportFileOptions as ImportFileOptions
 import LoggerSetup
 import ManageCategoriesPackage.ManageCategories as ManageCategories
 import ManageDataBackups
+import MenuBarPackage.ManagePreferences as ManagePreferences
 
-# TODO: Application preferences like default category color, only show category color on column or across entire row, 
-# default password settings, show/hide password on startup, etc
 
 # python -m PyQt6.uic.pyuic -x PasswordManager.ui -o PasswordManagerGUICopy.py
 # python -m PyInstaller --onefile --noconsole --distpath ~/Documents PasswordManager.py
@@ -141,6 +140,12 @@ class PasswordManager():
         self.ui.pushButtonGenSecPass.clicked.connect(lambda _: self.OnGeneratePassword())
         self.ui.pushButtonRemoveDuplicates.clicked.connect(lambda _: self.OnRemoveDuplicates())
         self.ui.pushButtonManageCategories.clicked.connect(lambda _: self.OnManageCategories())
+        self.ui.actionPreferences.triggered.connect(lambda _: self.OnMenuSettingsPreferences())
+
+
+    def OnMenuSettingsPreferences(self):
+        managePreferencesObj = ManagePreferences.ManagePreferencesClass()
+        managePreferencesObj.Dialog.exec()
 
 
     def ManageDataBackups(self):

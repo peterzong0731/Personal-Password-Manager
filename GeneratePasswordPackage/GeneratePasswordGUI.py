@@ -30,6 +30,7 @@ class Ui_DialogGeneratePassword(object):
         self.horizontalLayout.addWidget(self.labelPwdLen)
         self.spinBoxPwdLen = QtWidgets.QSpinBox(parent=DialogGeneratePassword)
         self.spinBoxPwdLen.setMinimumSize(QtCore.QSize(75, 0))
+        self.spinBoxPwdLen.setCorrectionMode(QtWidgets.QAbstractSpinBox.CorrectionMode.CorrectToNearestValue)
         self.spinBoxPwdLen.setKeyboardTracking(True)
         self.spinBoxPwdLen.setMinimum(4)
         self.spinBoxPwdLen.setMaximum(50)

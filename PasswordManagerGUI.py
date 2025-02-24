@@ -255,13 +255,19 @@ class Ui_MainWindow(object):
         self.verticalLayout.addLayout(self.horizontalLayout_3)
         self.verticalLayout_2.addLayout(self.verticalLayout)
         MainWindow.setCentralWidget(self.centralwidget)
-        self.menubar = QtWidgets.QMenuBar(parent=MainWindow)
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 1479, 26))
-        self.menubar.setObjectName("menubar")
-        MainWindow.setMenuBar(self.menubar)
         self.statusbar = QtWidgets.QStatusBar(parent=MainWindow)
         self.statusbar.setObjectName("statusbar")
         MainWindow.setStatusBar(self.statusbar)
+        self.menuBar = QtWidgets.QMenuBar(parent=MainWindow)
+        self.menuBar.setGeometry(QtCore.QRect(0, 0, 1479, 26))
+        self.menuBar.setObjectName("menuBar")
+        self.menuSettings = QtWidgets.QMenu(parent=self.menuBar)
+        self.menuSettings.setObjectName("menuSettings")
+        MainWindow.setMenuBar(self.menuBar)
+        self.actionPreferences = QtGui.QAction(parent=MainWindow)
+        self.actionPreferences.setObjectName("actionPreferences")
+        self.menuSettings.addAction(self.actionPreferences)
+        self.menuBar.addAction(self.menuSettings.menuAction())
 
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
@@ -292,6 +298,8 @@ class Ui_MainWindow(object):
         self.label_newCategory.setText(_translate("MainWindow", "Category:"))
         self.label_newNotes.setText(_translate("MainWindow", "Notes:"))
         self.pushButtonAddNewEntry.setText(_translate("MainWindow", "Add New Entry"))
+        self.menuSettings.setTitle(_translate("MainWindow", "Settings"))
+        self.actionPreferences.setText(_translate("MainWindow", "Preferences"))
 
 
 if __name__ == "__main__":
