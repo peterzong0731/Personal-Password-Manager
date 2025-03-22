@@ -51,13 +51,14 @@ class PasswordManager():
     if getattr(sys, 'frozen', False): #Running as an executable
         LOGIN_DATA_PATH = os.path.join(sys.executable, "Data", "Login_data.parquet")
         CATEGORY_CONFIG_PATH = os.path.join(sys.executable, "Data", "CategoryConfig.json")
+        PREFERENCES_PATH = os.path.join(sys.executable, "Data", "Preferences.json")
         LOG_FILE_FOLDER = os.path.join(sys.executable, "Logs")
     else: # Running as a script
         LOGIN_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data", "Login_data.parquet")
         CATEGORY_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data", "CategoryConfig.json")
+        PREFERENCES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data", "Preferences.json")
         LOG_FILE_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Logs")
     LOG_FILE_PATH = os.path.join(LOG_FILE_FOLDER, "PasswordManager.log")
-    DEFAULT_CATEGORY_COLOR = "#e6e6e6"
 
     # Global dynamic variables
     login_data = pd.DataFrame()
@@ -66,6 +67,7 @@ class PasswordManager():
     category_data = {}
     show_passwords = False
     logger = None
+    preferences = {}
 
     def __init__(self):
         LoggerSetup.LoggerSetupClass().setupLogger()
@@ -85,6 +87,7 @@ class PasswordManager():
         app.processEvents()
 
         self.GetData()
+        self.ReadPreferencesFromFile()
         self.ReadCategories()
         self.AddMissingCategories()
         self.FillComboBoxes()
@@ -144,8 +147,50 @@ class PasswordManager():
 
 
     def OnMenuSettingsPreferences(self):
-        managePreferencesObj = ManagePreferences.ManagePreferencesClass()
+        managePreferencesObj = ManagePreferences.ManagePreferencesClass(self.preferences)
+        managePreferencesObj.applyPreferencesSignal.connect(self.ApplyPreferences)
         managePreferencesObj.Dialog.exec()
+
+    def ReadPreferencesFromFile(self):
+        preferencesData = {
+            "Theme": "Light",
+            "HidePasswordsByDefault": True,
+            "DefaultDataHeaderRowColor": "#a4a4a4",
+            "DefaultCategoryColor": "#e6e6e6",
+            "DefaultPasswordOptions": {
+                "Length": 8,
+                "IncludeNumbers": True,
+                "IncludeSymbols": False
+            }
+        }
+        try:
+            with open(self.PREFERENCES_PATH) as preferencesFile:
+                preferencesData = json.load(preferencesFile)
+            self.logger.info('Preferences file loaded: "%s"', self.PREFERENCES_PATH)
+        except Exception as e:
+            self.logger.error("Exception reading preferences file:", exc_info=True)
+
+        self.preferences = preferencesData
+        self.ApplyPreferences(self.preferences)
+
+    def ApplyPreferences(self, preferences):
+        self.logger.info("Updated preferences: %s", preferences)
+        self.preferences = preferences
+        if preferences['Theme'].lower() == "light":
+            self.ChangeToLightTheme()
+        elif preferences["Theme"].lower() == "dark":
+            self.ChangeToDarkTheme()
+        self.ui.checkBoxShowPasswords.setChecked(not preferences["HidePasswordsByDefault"])
+        self.DisplayTable()
+
+
+    def ChangeToLightTheme(self):
+        # TODO: Read from style sheet and update components
+        ...
+
+    def ChangeToDarkTheme(self):
+        # TODO: Read from style sheet and update components
+        ...
 
 
     def ManageDataBackups(self):
@@ -168,7 +213,7 @@ class PasswordManager():
         for name, color in importedData.items():
             colorHexPattern = r"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
             if not color or not bool(re.match(colorHexPattern, color)):
-                importedData[name] = self.DEFAULT_CATEGORY_COLOR
+                importedData[name] = self.preferences["DefaultCategoryColor"]
 
         self.category_data = importedData
 
@@ -326,7 +371,7 @@ class PasswordManager():
         for category in self.login_data['Category']:
             category = category.title()
             if category not in self.category_data and category != '':
-                self.category_data[category] = self.DEFAULT_CATEGORY_COLOR
+                self.category_data[category] = self.preferences["DefaultCategoryColor"]
                 anyCategoryAdded = True
 
         if anyCategoryAdded:
@@ -362,7 +407,7 @@ class PasswordManager():
 
         
     def OnManageCategories(self):
-        categoriesObj = ManageCategories.ManageCategoriesClass(self.category_data)
+        categoriesObj = ManageCategories.ManageCategoriesClass(self.category_data, self.preferences["DefaultCategoryColor"])
         categoriesObj.updatedCategoriesSignal.connect(self.HandleUpdateCategoriesDailogClosed)
         categoriesObj.Dialog.exec()
 
@@ -656,9 +701,9 @@ class PasswordManager():
                     if qTableWidgetItem.text() in self.category_data:
                         qTableWidgetItem.setBackground(QColor(self.category_data[qTableWidgetItem.text()]))
                     else:
-                        qTableWidgetItem.setBackground(QColor(self.DEFAULT_CATEGORY_COLOR))
+                        qTableWidgetItem.setBackground(QColor(self.preferences["DefaultCategoryColor"]))
                 elif col == self.NAME_COLUMN:
-                    qTableWidgetItem.setBackground(QColor(255, 228, 196))  # Bisque color
+                    qTableWidgetItem.setBackground(QColor(self.preferences["DefaultDataHeaderRowColor"]))
                 elif col == self.PASSWORD_COLUMN:
                     qTableWidgetItem.setData(Qt.ItemDataRole.UserRole, stringData)
                     qTableWidgetItem.setText(self.ShowOrHidePassword(qTableWidgetItem.data(Qt.ItemDataRole.UserRole)))
@@ -683,7 +728,7 @@ class PasswordManager():
 
     def OnGeneratePassword(self):
         self.ClearStatusBar()
-        passwordObj = GeneratePassword.GeneratePasswordClass()
+        passwordObj = GeneratePassword.GeneratePasswordClass(self.preferences)
         passwordObj.passwordCopiedSignal.connect(self.HandleGeneratePasswordDialogClosed)
         passwordObj.Dialog.exec()
 

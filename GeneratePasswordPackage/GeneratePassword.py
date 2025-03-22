@@ -37,21 +37,24 @@ class GeneratePasswordClass(QDialog):
     LOGGER = logging.getLogger()
     SYS_RANDOM = random.SystemRandom()
 
-    def __init__(self):
+    def __init__(self, preferences):
         super().__init__()
 
         # Create Password Generator dialog
         self.Dialog = QDialog()
         self.ui = GeneratePasswordGUI.Ui_DialogGeneratePassword()
         self.ui.setupUi(self.Dialog)
-        self.AdditionalUISetup()
+        self.AdditionalUISetup(preferences)
         self.ConnectButtons()
         self.GeneratePassword()
 
 
-    def AdditionalUISetup(self):
+    def AdditionalUISetup(self, preferences):
         self.ui.labelPwdOptions.setStyleSheet("QLabel {font-size: 16px;}")
         self.ui.labelPwdCopiedtoClipboard.setVisible(False)
+        self.ui.spinBoxPwdLen.setValue(preferences["DefaultPasswordOptions"]["Length"])
+        self.ui.checkBoxPwdIncludeNumbers.setChecked(preferences["DefaultPasswordOptions"]["IncludeNumbers"])
+        self.ui.checkBoxPwdIncludeSymbols.setChecked(preferences["DefaultPasswordOptions"]["IncludeSymbols"])
 
 
     def ConnectButtons(self):

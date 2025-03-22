@@ -34,7 +34,6 @@ class ManageCategoriesClass(QDialog):
 
     # Global constants
     LOGGER = logging.getLogger()
-    DEFAULT_CATEGORY_COLOR = "#e6e6e6"
     if getattr(sys, 'frozen', False): #Running as an executable
         CATEGORY_CONFIG_PATH = os.path.join(sys.executable, "Data", "CategoryConfig.json")
     else: # Running as a script
@@ -44,8 +43,9 @@ class ManageCategoriesClass(QDialog):
     number_of_categories = 0
     indexed_original_category_data = {}
     category_index = 0
+    default_category_color = ""
 
-    def __init__(self, categoryData):
+    def __init__(self, categoryData, defaultCategoryColor):
         super().__init__()
 
         # Create Manage Categories dialogs
@@ -55,6 +55,7 @@ class ManageCategoriesClass(QDialog):
         self.AdditionalUISetup()
         self.ConnectButtons()
         self.SetupCategoryRows(categoryData)
+        self.default_category_color = defaultCategoryColor
 
     def AdditionalUISetup(self):
         self.ui.labelErrorMessage.setVisible(False)
@@ -109,7 +110,7 @@ class ManageCategoriesClass(QDialog):
 
     def OnAddNew(self):
         self.category_index += 1
-        self.InsertCategoryRow("", self.DEFAULT_CATEGORY_COLOR)
+        self.InsertCategoryRow("", self.default_category_color)
     
     def deleteRow(self, layout):
         for col in range(layout.count()):
