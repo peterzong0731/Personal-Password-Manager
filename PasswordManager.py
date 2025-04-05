@@ -20,7 +20,7 @@ import MenuBarPackage.ManagePreferences as ManagePreferences
 
 
 # python -m PyQt6.uic.pyuic -x PasswordManager.ui -o PasswordManagerGUICopy.py
-# python -m PyInstaller --onefile --noconsole --distpath ~/Documents PasswordManager.py
+# python -m PyInstaller --onefile --noconsole --distpath . --name PersonalPasswordManager PasswordManager.py
 
 def log_function_call(func):
     """Decorator to log function calls with arguments and return values."""
@@ -49,10 +49,10 @@ class PasswordManager():
     CATEGORY_SELECT_ALL = "Select All"
     EXPECTED_COLUMNS = ['Category', 'Name', 'Username', 'Email', 'Password', 'Pin', 'Notes']
     if getattr(sys, 'frozen', False): #Running as an executable
-        LOGIN_DATA_PATH = os.path.join(sys.executable, "Data", "Login_data.parquet")
-        CATEGORY_CONFIG_PATH = os.path.join(sys.executable, "Data", "CategoryConfig.json")
-        PREFERENCES_PATH = os.path.join(sys.executable, "Data", "Preferences.json")
-        LOG_FILE_FOLDER = os.path.join(sys.executable, "Logs")
+        LOGIN_DATA_PATH = os.path.join(os.getenv('APPDATA'), "PersonalPasswordManager", "Data", "Login_data.parquet")
+        CATEGORY_CONFIG_PATH = os.path.join(os.getenv('APPDATA'), "PersonalPasswordManager", "Data", "CategoryConfig.json")
+        PREFERENCES_PATH = os.path.join(os.getenv('APPDATA'), "PersonalPasswordManager", "Data", "Preferences.json")
+        LOG_FILE_FOLDER = os.path.join(os.getenv('APPDATA'), "PersonalPasswordManager", "Logs")
     else: # Running as a script
         LOGIN_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data", "Login_data.parquet")
         CATEGORY_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data", "CategoryConfig.json")

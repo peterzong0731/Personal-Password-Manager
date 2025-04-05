@@ -28,7 +28,7 @@ class ManageDataBackupsClass():
     LOGGER = logging.getLogger()
     MAX_BACKUP_FILES_PER_FORMAT = 10
     if getattr(sys, 'frozen', False): #Running as an executable
-        DATA_BACKUPS_FOLDER_PATH = os.path.join(sys.executable, "Data_Backups")
+        DATA_BACKUPS_FOLDER_PATH = os.path.join(os.getenv('APPDATA'), "PersonalPasswordManager", "Data_Backups")
     else: # Running as a script
         DATA_BACKUPS_FOLDER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data_Backups")
 

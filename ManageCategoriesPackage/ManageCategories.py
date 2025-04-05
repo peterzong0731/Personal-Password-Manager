@@ -35,7 +35,7 @@ class ManageCategoriesClass(QDialog):
     # Global constants
     LOGGER = logging.getLogger()
     if getattr(sys, 'frozen', False): #Running as an executable
-        CATEGORY_CONFIG_PATH = os.path.join(sys.executable, "Data", "CategoryConfig.json")
+        CATEGORY_CONFIG_PATH = os.path.join(os.getenv('APPDATA'), "PersonalPasswordManager", "Data", "CategoryConfig.json")
     else: # Running as a script
         CATEGORY_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Data", "CategoryConfig.json")
 

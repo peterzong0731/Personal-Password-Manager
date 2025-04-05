@@ -8,7 +8,7 @@ class LoggerSetupClass:
     @staticmethod
     def setupLogger():
         if getattr(sys, 'frozen', False):
-            logDirectory = os.path.join(sys.executable, "Logs")
+            logDirectory = os.path.join(os.getenv('APPDATA'), "PersonalPasswordManager", "Logs")
         else:
             logDirectory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Logs")
         os.makedirs(logDirectory, exist_ok=True)

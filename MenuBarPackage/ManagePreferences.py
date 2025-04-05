@@ -35,7 +35,7 @@ class ManagePreferencesClass(QDialog):
     # Global constants
     LOGGER = logging.getLogger()
     if getattr(sys, 'frozen', False): #Running as an executable
-        PREFERENCES_PATH = os.path.join(sys.executable, os.path.pardir, "Data", "Preferences.json")
+        PREFERENCES_PATH = os.path.join(os.getenv('APPDATA'), "PersonalPasswordManager", "Data", "Preferences.json")
     else: # Running as a script
         PREFERENCES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.pardir, "Data", "Preferences.json")
 
