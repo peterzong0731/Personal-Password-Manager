@@ -55,9 +55,6 @@ Section "Install"
 
     # Register the app for easy launching from Run dialog or Start Menu
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\App Paths\PersonalPasswordManager.exe" "" "$INSTDIR\PersonalPasswordManager.exe"
-
-    # Launch the installed application after installation
-    # Exec "$INSTDIR\PersonalPasswordManager.exe"
 SectionEnd
 
 Section "Uninstall"

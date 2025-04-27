@@ -6,7 +6,7 @@ import pandas as pd
 import re
 import sys
 import threading
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QStandardPaths, Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication, QAbstractItemView, QComboBox, QFileDialog, QMainWindow, QStatusBar, QTableWidget, QTableWidgetItem
 
@@ -21,6 +21,8 @@ import MenuBarPackage.ManagePreferences as ManagePreferences
 
 # python -m PyQt6.uic.pyuic -x PasswordManager.ui -o PasswordManagerGUICopy.py
 # python -m PyInstaller --onefile --noconsole --distpath . --name PersonalPasswordManager PasswordManager.py
+
+# TODO: Add preference color selection feature
 
 def log_function_call(func):
     """Decorator to log function calls with arguments and return values."""
@@ -42,12 +44,13 @@ def log_all_methods(cls):
 @log_all_methods
 class PasswordManager():
     # Global constants
+    DOCUMENTS_FOLDER_PATH = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
     CATEGORY_COLUMN = 0
     NAME_COLUMN = 1
-    EMAIL_COLUMN = 3
+    EMAIL_COLUMN = 2
     PASSWORD_COLUMN = 4
     CATEGORY_SELECT_ALL = "Select All"
-    EXPECTED_COLUMNS = ['Category', 'Name', 'Username', 'Email', 'Password', 'Pin', 'Notes']
+    EXPECTED_COLUMNS = ['Category', 'Name', 'Email', 'Username/ID', 'Password', 'Pin', 'Notes']
     if getattr(sys, 'frozen', False): #Running as an executable
         LOGIN_DATA_PATH = os.path.join(os.getenv('APPDATA'), "PersonalPasswordManager", "Data", "Login_data.parquet")
         CATEGORY_CONFIG_PATH = os.path.join(os.getenv('APPDATA'), "PersonalPasswordManager", "Data", "CategoryConfig.json")
@@ -105,8 +108,8 @@ class PasswordManager():
         self.ui.pushButtonAddNewEntry.setFont(pushButtonAddNewEntryFont)
 
         self.ui.lineEditNameNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
-        self.ui.lineEditUsernameNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
         self.ui.lineEditEmailNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
+        self.ui.lineEditUsernameNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
         self.ui.lineEditPasswordNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
         self.ui.lineEditPinNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
         self.ui.lineEditNotesNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
@@ -155,7 +158,8 @@ class PasswordManager():
         preferencesData = {
             "Theme": "Light",
             "HidePasswordsByDefault": True,
-            "DefaultDataHeaderRowColor": "#a4a4a4",
+            "TableHeaderRowColor": "#a4a4a4",
+            "TableNameColumnColor": "#cfe1ff",
             "DefaultCategoryColor": "#e6e6e6",
             "DefaultPasswordOptions": {
                 "Length": 8,
@@ -219,12 +223,11 @@ class PasswordManager():
 
     
     def FillComboBoxes(self):
-        categories = [self.CATEGORY_SELECT_ALL] + sorted(self.category_data.keys())
         self.ui.comboBoxFilterCategory.clear()
-        self.ui.comboBoxFilterCategory.addItems(categories)
+        self.ui.comboBoxFilterCategory.addItems([self.CATEGORY_SELECT_ALL] + sorted(self.category_data.keys()))
 
         self.ui.comboBoxCategoryNewEntry.clear()
-        self.ui.comboBoxCategoryNewEntry.addItems(categories)
+        self.ui.comboBoxCategoryNewEntry.addItems([""] + sorted(self.category_data.keys()))
 
 
     def GetData(self):
@@ -261,7 +264,7 @@ class PasswordManager():
 
     def OnImportData(self):
         self.ClearStatusBar()
-        fileObj = QFileDialog.getOpenFileName(None, "Open File", "", 
+        fileObj = QFileDialog.getOpenFileName(None, "Open File", self.DOCUMENTS_FOLDER_PATH, 
                                               """All Supported Formats (*.xlsx; *.csv; *.json; *.xml; *.parquet);;
                                               Excel (*.xlsx);;
                                               CSV (*.csv);;
@@ -331,7 +334,7 @@ class PasswordManager():
     def OnExportData(self):
         self.ClearStatusBar()
         defaultFileName = "LoginData.xlsx"
-        fileObj =  QFileDialog.getSaveFileName(None, "Save File", defaultFileName, "Excel (*.xlsx);;CSV (*.csv);;JSON (*.json);;XML (*.xml);;Parquet (*.parquet);;All Files (*)")
+        fileObj =  QFileDialog.getSaveFileName(None, "Save File", os.path.join(self.DOCUMENTS_FOLDER_PATH, defaultFileName), "Excel (*.xlsx);;CSV (*.csv);;JSON (*.json);;XML (*.xml);;Parquet (*.parquet);;All Files (*)")
         if fileObj[0] == "":
             self.logger.info("No export data file selected, returning")
             return
@@ -471,8 +474,8 @@ class PasswordManager():
         self.ui.lineEditFilterName.setDisabled(True)
         self.ui.lineEditFilterEmail.setDisabled(True)
         self.ui.lineEditNameNewEntry.setDisabled(True)
-        self.ui.lineEditUsernameNewEntry.setDisabled(True)
         self.ui.lineEditEmailNewEntry.setDisabled(True)
+        self.ui.lineEditUsernameNewEntry.setDisabled(True)
         self.ui.lineEditPasswordNewEntry.setDisabled(True)
         self.ui.lineEditPinNewEntry.setDisabled(True)
         self.ui.lineEditNotesNewEntry.setDisabled(True)
@@ -485,8 +488,8 @@ class PasswordManager():
         self.ui.pushButtonAddNewEntry.setDisabled(True)
 
         self.ui.lineEditNameNewEntry.setStyleSheet("QLineEdit {color: gray, border: 1px solid gray;}")
-        self.ui.lineEditUsernameNewEntry.setStyleSheet("QLineEdit {color: gray, border: 1px solid gray;}")
         self.ui.lineEditEmailNewEntry.setStyleSheet("QLineEdit {color: gray, border 1px solid gray;}")
+        self.ui.lineEditUsernameNewEntry.setStyleSheet("QLineEdit {color: gray, border: 1px solid gray;}")
         self.ui.lineEditPasswordNewEntry.setStyleSheet("QLineEdit {color: gray, border: 1px solid gray;}")
         self.ui.lineEditPinNewEntry.setStyleSheet("QLineEdit {color: gray, border: 1px solid gray;}")
         self.ui.lineEditNotesNewEntry.setStyleSheet("QLineEdit {color: gray, border: 1px solid gray;}")
@@ -504,8 +507,8 @@ class PasswordManager():
         self.ui.lineEditFilterName.setEnabled(True)
         self.ui.lineEditFilterEmail.setEnabled(True)
         self.ui.lineEditNameNewEntry.setEnabled(True)
-        self.ui.lineEditUsernameNewEntry.setEnabled(True)
         self.ui.lineEditEmailNewEntry.setEnabled(True)
+        self.ui.lineEditUsernameNewEntry.setEnabled(True)
         self.ui.lineEditPasswordNewEntry.setEnabled(True)
         self.ui.lineEditPinNewEntry.setEnabled(True)
         self.ui.lineEditNotesNewEntry.setEnabled(True)
@@ -518,8 +521,8 @@ class PasswordManager():
         self.ui.pushButtonAddNewEntry.setEnabled(True)
 
         self.ui.lineEditNameNewEntry.setStyleSheet("QLineEdit {color: white, border: 1px solid gray;}")
-        self.ui.lineEditUsernameNewEntry.setStyleSheet("QLineEdit {color: white, border: 1px solid gray;}")
         self.ui.lineEditEmailNewEntry.setStyleSheet("QLineEdit {color: white, border: 1px solid gray;}")
+        self.ui.lineEditUsernameNewEntry.setStyleSheet("QLineEdit {color: white, border: 1px solid gray;}")
         self.ui.lineEditPasswordNewEntry.setStyleSheet("QLineEdit {color: white, border: 1px solid gray;}")
         self.ui.lineEditPinNewEntry.setStyleSheet("QLineEdit {color: white, border: 1px solid gray;}")
         self.ui.lineEditNotesNewEntry.setStyleSheet("QLineEdit {color: white, border: 1px solid gray;}")
@@ -540,11 +543,19 @@ class PasswordManager():
         self.ui.tableWidgetLoginData.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
         self.edit_delete_action = "Edit"
 
+        def _OnCategoryChanged(categoryText, comboBox):
+            if categoryText in self.category_data:
+                comboBox.setStyleSheet(f"QComboBox {{ background-color: {self.category_data[categoryText]}; }}")
+            else:
+                comboBox.setStyleSheet(f"QComboBox {{ background-color: {self.preferences['DefaultCategoryColor']}; }}")
+
         for row in range(self.ui.tableWidgetLoginData.rowCount()):
             comboBox = QComboBox()
-            comboBox.addItems(sorted(self.category_data.keys()))
+            comboBox.addItems([""] + sorted(self.category_data.keys()))
             originalCategory = self.ui.tableWidgetLoginData.item(row, self.CATEGORY_COLUMN)
+            comboBox.currentTextChanged.connect(lambda text, cb=comboBox: _OnCategoryChanged(text, cb))
             comboBox.setCurrentText(originalCategory.text())
+            _OnCategoryChanged(comboBox.currentText(), comboBox)
             self.ui.tableWidgetLoginData.setCellWidget(row, self.CATEGORY_COLUMN, comboBox)
 
     def OnDelete(self):
@@ -649,8 +660,8 @@ class PasswordManager():
         newEntryData = {
                         'Category': [self.ui.comboBoxCategoryNewEntry.currentText()],
                         'Name': [self.ui.lineEditNameNewEntry.text()],
-                        'Username': [self.ui.lineEditUsernameNewEntry.text()],
                         'Email': [self.ui.lineEditEmailNewEntry.text()],
+                        'Username/ID': [self.ui.lineEditUsernameNewEntry.text()],
                         'Password': [self.ui.lineEditPasswordNewEntry.text()],
                         'Pin': [self.ui.lineEditPinNewEntry.text()],
                         'Notes': [self.ui.lineEditNotesNewEntry.text()]
@@ -671,6 +682,7 @@ class PasswordManager():
         self.login_data = pd.concat([self.login_data, newEntryDF], ignore_index = True)
 
         self.ui.lineEditNameNewEntry.setStyleSheet("QLineEdit {border: 1px solid gray;}")
+        self.ui.comboBoxCategoryNewEntry.setCurrentIndex(0)
         self.ClearFields()     
         self.DisplayTable()
         self.SaveData()
@@ -679,8 +691,8 @@ class PasswordManager():
 
     def ClearFields(self):
         self.ui.lineEditNameNewEntry.setText("")
-        self.ui.lineEditUsernameNewEntry.setText("")
         self.ui.lineEditEmailNewEntry.setText("")
+        self.ui.lineEditUsernameNewEntry.setText("")
         self.ui.lineEditPasswordNewEntry.setText("")
         self.ui.lineEditPinNewEntry.setText("")
         self.ui.lineEditNotesNewEntry.setText("")
@@ -703,7 +715,7 @@ class PasswordManager():
                     else:
                         qTableWidgetItem.setBackground(QColor(self.preferences["DefaultCategoryColor"]))
                 elif col == self.NAME_COLUMN:
-                    qTableWidgetItem.setBackground(QColor(self.preferences["DefaultDataHeaderRowColor"]))
+                    qTableWidgetItem.setBackground(QColor(self.preferences["TableNameColumnColor"]))
                 elif col == self.PASSWORD_COLUMN:
                     qTableWidgetItem.setData(Qt.ItemDataRole.UserRole, stringData)
                     qTableWidgetItem.setText(self.ShowOrHidePassword(qTableWidgetItem.data(Qt.ItemDataRole.UserRole)))
@@ -723,7 +735,7 @@ class PasswordManager():
             self.ui.tableWidgetLoginData.horizontalHeader().setSectionResizeMode(self.ui.tableWidgetLoginData.columnCount() - 1, QtWidgets.QHeaderView.ResizeMode.Stretch)
             self.ui.tableWidgetLoginData.horizontalHeader().setStretchLastSection(True)
 
-        self.ui.tableWidgetLoginData.horizontalHeader().setStyleSheet("QHeaderView::section { background-color: lightblue; color: black; }")
+        self.ui.tableWidgetLoginData.horizontalHeader().setStyleSheet(f"QHeaderView::section {{ background-color: {self.preferences['TableHeaderRowColor']}; color: black; }}")
 
 
     def OnGeneratePassword(self):

@@ -60,7 +60,8 @@ class ManagePreferencesClass(QDialog):
         if self.preferences["Theme"] == "Dark":
             self.ui.comboBoxTheme.setCurrentIndex(1)
         self.ui.checkBoxHidePasswordsByDefault.setChecked(self.preferences["HidePasswordsByDefault"])
-        # TODO: Create component and set default data header row color
+        # TODO: Create component and set table header row color
+        # TODO: Create component and set table name column color
         # TODO: Create component and set default category color
         self.ui.spinBoxDefaultPasswordLength.setValue(self.preferences["DefaultPasswordOptions"]["Length"])
         self.ui.checkBoxDefaultPasswordIncludeNumbers.setChecked(self.preferences["DefaultPasswordOptions"]["IncludeNumbers"])
@@ -75,7 +76,8 @@ class ManagePreferencesClass(QDialog):
     def OnApply(self):
         self.preferences["Theme"] = self.ui.comboBoxTheme.currentText()
         self.preferences["HidePasswordsByDefault"] = self.ui.checkBoxHidePasswordsByDefault.isChecked()
-        self.preferences["DefaultDataHeaderRowColor"] = "#a4a4a4" # TODO: Update to selected color
+        self.preferences["TableHeaderRowColor"] = "#a4a4a4" # TODO: Update to selected color
+        self.preferences["TableNameColumnColor"] = "#cfe1ff" # TODO: Update to selected color
         self.preferences["DefaultCategoryColor"] = "#e6e6e6" # TODO: Update to selected color
         self.preferences["DefaultPasswordOptions"]["Length"] = self.ui.spinBoxDefaultPasswordLength.value()
         self.preferences["DefaultPasswordOptions"]["IncludeNumbers"] = self.ui.checkBoxDefaultPasswordIncludeNumbers.isChecked()
