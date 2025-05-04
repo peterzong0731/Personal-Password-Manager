@@ -8,6 +8,7 @@ import pytz
 import re
 import sys
 import threading
+import webbrowser
 from PyQt6.QtCore import QStandardPaths, Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication, QAbstractItemView, QComboBox, QFileDialog, QMainWindow, QStatusBar, QTableWidget, QTableWidgetItem
@@ -27,7 +28,6 @@ import MenuBarPackage.ManagePreferences as ManagePreferences
 # TODO: Add preference color selection feature
 # TODO: Themes
 # TODO: Add preference to change time zone
-# TODO: Help
 
 def log_function_call(func):
     """Decorator to log function calls with arguments and return values."""
@@ -154,7 +154,11 @@ class PasswordManager():
         self.ui.pushButtonRemoveDuplicates.clicked.connect(lambda _: self.OnRemoveDuplicates())
         self.ui.pushButtonManageCategories.clicked.connect(lambda _: self.OnManageCategories())
         self.ui.actionPreferences.triggered.connect(lambda _: self.OnMenuSettingsPreferences())
+        self.ui.actionViewReadMe.triggered.connect(lambda _: self.OnMenuHelpReadme())
 
+
+    def OnMenuHelpReadme(self):
+        webbrowser.open("https://github.com/peterzong0731/Personal-Password-Manager/blob/main/README.md")
 
     def OnMenuSettingsPreferences(self):
         managePreferencesObj = ManagePreferences.ManagePreferencesClass(self.preferences)
