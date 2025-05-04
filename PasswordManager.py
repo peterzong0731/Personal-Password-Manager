@@ -1,8 +1,10 @@
+import datetime
 import functools
 import json
 import logging
 import os
 import pandas as pd
+import pytz
 import re
 import sys
 import threading
@@ -23,6 +25,9 @@ import MenuBarPackage.ManagePreferences as ManagePreferences
 # python -m PyInstaller --onefile --noconsole --distpath . --name PersonalPasswordManager PasswordManager.py
 
 # TODO: Add preference color selection feature
+# TODO: Themes
+# TODO: Add preference to change time zone
+# TODO: Help
 
 def log_function_call(func):
     """Decorator to log function calls with arguments and return values."""
@@ -49,8 +54,10 @@ class PasswordManager():
     NAME_COLUMN = 1
     EMAIL_COLUMN = 2
     PASSWORD_COLUMN = 4
+    PIN_COLUMN = 5
+    LAST_MODIFIED_COLUMN = 6
     CATEGORY_SELECT_ALL = "Select All"
-    EXPECTED_COLUMNS = ['Category', 'Name', 'Email', 'Username/ID', 'Password', 'Pin', 'Notes']
+    EXPECTED_COLUMNS = ['Category', 'Name', 'Email', 'Username/ID', 'Password', 'Pin', 'Last Modified', 'Notes']
     if getattr(sys, 'frozen', False): #Running as an executable
         LOGIN_DATA_PATH = os.path.join(os.getenv('APPDATA'), "PersonalPasswordManager", "Data", "Login_data.parquet")
         CATEGORY_CONFIG_PATH = os.path.join(os.getenv('APPDATA'), "PersonalPasswordManager", "Data", "CategoryConfig.json")
@@ -231,6 +238,7 @@ class PasswordManager():
 
 
     def GetData(self):
+        self.login_data = pd.DataFrame({col: pd.Series(dtype='str') for col in self.EXPECTED_COLUMNS})
         if os.path.isfile(self.LOGIN_DATA_PATH):
             loginDataFile = pd.read_parquet(self.LOGIN_DATA_PATH)
             missingColumns = set(self.EXPECTED_COLUMNS) - set(loginDataFile.columns)
@@ -241,10 +249,9 @@ class PasswordManager():
                     loginDataFile[col] = ""
             loginDataFile = loginDataFile[self.EXPECTED_COLUMNS]
             loginDataFile = loginDataFile.fillna("")
-            self.login_data = loginDataFile
+            self.login_data = pd.concat([self.login_data, loginDataFile], ignore_index = True)
         else:
             self.logger.info("Source data file does not exist, creating empty file")
-            self.login_data = pd.DataFrame(columns = self.EXPECTED_COLUMNS)
             self.SaveData()
         self.logger.info("Source data loaded")
 
@@ -558,6 +565,10 @@ class PasswordManager():
             _OnCategoryChanged(comboBox.currentText(), comboBox)
             self.ui.tableWidgetLoginData.setCellWidget(row, self.CATEGORY_COLUMN, comboBox)
 
+            lastModified = self.ui.tableWidgetLoginData.item(row, self.LAST_MODIFIED_COLUMN)
+            lastModified.setFlags(lastModified.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            lastModified.setBackground(QColor("#f0f0f0"))
+
     def OnDelete(self):
         self.ClearStatusBar()
         self.EnterEditDeleteUI()
@@ -574,6 +585,7 @@ class PasswordManager():
                 categoryValue = comboBox.currentText()
                 self.ui.tableWidgetLoginData.removeCellWidget(row, self.CATEGORY_COLUMN)
                 self.ui.tableWidgetLoginData.setItem(row, self.CATEGORY_COLUMN, QTableWidgetItem(categoryValue))
+                self.ui.tableWidgetLoginData.item(row, self.LAST_MODIFIED_COLUMN).setBackground(QColor("#ffffff"))
             self.ApplyEdits()
         elif self.edit_delete_action == "Delete":
             self.DeleteRows()
@@ -596,17 +608,28 @@ class PasswordManager():
 
     def ApplyEdits(self):       
         updatedData = []
+        mismatchCount = 0
         for row in range(self.ui.tableWidgetLoginData.rowCount()):
             rowData = []
+            mismatchFound = False
             for col in range(self.ui.tableWidgetLoginData.columnCount()):
                 item = self.ui.tableWidgetLoginData.item(row, col)
                 cellData = item.text()
+                originalData = self.login_data.iloc[row, col]
                 if col == self.PASSWORD_COLUMN:
                     if re.match("\*+", cellData):
                         cellData = item.data(Qt.ItemDataRole.UserRole)
                     else:
                         item.setData(Qt.ItemDataRole.UserRole, item.text())
+                elif col == self.LAST_MODIFIED_COLUMN:
+                    cellData = item.data(Qt.ItemDataRole.UserRole)
+                if cellData != originalData:
+                    mismatchFound = True
+                    mismatchCount += 1
                 rowData.append(cellData)
+
+            if mismatchFound:
+                rowData[self.LAST_MODIFIED_COLUMN] = str(datetime.datetime.now(pytz.utc))
             updatedData.append(rowData)
 
         updatedDataFrame = pd.DataFrame(updatedData, columns = self.EXPECTED_COLUMNS)
@@ -615,9 +638,6 @@ class PasswordManager():
             self.UpdateStatusBar("Name can't be blank", "red")
             self.OnEdit(False)
         else:
-            mismatch = (self.login_data != updatedDataFrame)
-            mismatchCount = mismatch.sum().sum()
-
             self.login_data = updatedDataFrame
 
             if mismatchCount == 0:
@@ -656,7 +676,13 @@ class PasswordManager():
         self.logger.info("Deleted %d entires", len(selectedRows))
 
     
-    def OnAddNewEntry(self):       
+    def FormatDateTimeWithTimezone(self, UTCDateTimeAsString):
+        # Need to get timezone from preferences
+        UTCDateTime = datetime.datetime.strptime(UTCDateTimeAsString, "%Y-%m-%d %H:%M:%S.%f%z")
+        return UTCDateTime.astimezone(pytz.timezone('US/Eastern')).strftime("%#d/%#m/%y %#I:%M:%S %p")
+
+    
+    def OnAddNewEntry(self):
         newEntryData = {
                         'Category': [self.ui.comboBoxCategoryNewEntry.currentText()],
                         'Name': [self.ui.lineEditNameNewEntry.text()],
@@ -664,6 +690,7 @@ class PasswordManager():
                         'Username/ID': [self.ui.lineEditUsernameNewEntry.text()],
                         'Password': [self.ui.lineEditPasswordNewEntry.text()],
                         'Pin': [self.ui.lineEditPinNewEntry.text()],
+                        'Last Modified': [str(datetime.datetime.now(pytz.utc))],
                         'Notes': [self.ui.lineEditNotesNewEntry.text()]
                        }
         
@@ -719,6 +746,9 @@ class PasswordManager():
                 elif col == self.PASSWORD_COLUMN:
                     qTableWidgetItem.setData(Qt.ItemDataRole.UserRole, stringData)
                     qTableWidgetItem.setText(self.ShowOrHidePassword(qTableWidgetItem.data(Qt.ItemDataRole.UserRole)))
+                elif col == self.LAST_MODIFIED_COLUMN:
+                    qTableWidgetItem.setData(Qt.ItemDataRole.UserRole, stringData)
+                    qTableWidgetItem.setText(self.FormatDateTimeWithTimezone(stringData))
 
                 self.ui.tableWidgetLoginData.setItem(row, col, qTableWidgetItem)
 
