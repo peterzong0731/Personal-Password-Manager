@@ -114,7 +114,7 @@ class Ui_MainWindow(object):
         self.tableWidgetLoginData.setObjectName("tableWidgetLoginData")
         self.tableWidgetLoginData.setColumnCount(0)
         self.tableWidgetLoginData.setRowCount(0)
-        self.tableWidgetLoginData.horizontalHeader().setMinimumSectionSize(75)
+        self.tableWidgetLoginData.horizontalHeader().setMinimumSectionSize(50)
         self.horizontalLayout_7.addWidget(self.tableWidgetLoginData)
         self.pushButtonExportData = QtWidgets.QPushButton(parent=self.centralwidget)
         self.pushButtonExportData.setObjectName("pushButtonExportData")

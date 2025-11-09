@@ -4,7 +4,6 @@ import json
 import logging
 import os
 import pandas as pd
-import pytz
 import re
 import sys
 import threading
@@ -27,7 +26,6 @@ import MenuBarPackage.ManagePreferences as ManagePreferences
 
 # TODO: Add preference color selection feature
 # TODO: Themes
-# TODO: Add preference to change time zone
 
 def log_function_call(func):
     """Decorator to log function calls with arguments and return values."""
@@ -314,7 +312,7 @@ class PasswordManager():
             if len(missingColumns) > 0:
                 statusBarMessage += " Missing columns: [" + ", ".join(missingColumns) + "]."
             if len(extraColumns) > 0:
-                statusBarMessage += " Unexpected columns: [" + ", ".join(missingColumns) + "]."
+                statusBarMessage += " Unexpected columns: [" + ", ".join(extraColumns) + "]."
             self.logger.warning(statusBarMessage)
             self.UpdateStatusBar(statusBarMessage, "red")
             return
@@ -366,7 +364,7 @@ class PasswordManager():
             case ".csv":
                 self.login_data.to_csv(fileObj[0], index = False)
             case ".json":
-                self.login_data.to_json(fileObj[0], index = False)
+                self.login_data.to_json(fileObj[0], index = False, indent = 4)
             case ".xml":
                 self.login_data.to_xml(fileObj[0], index = False)
             case ".parquet":
@@ -571,7 +569,6 @@ class PasswordManager():
 
             lastModified = self.ui.tableWidgetLoginData.item(row, self.LAST_MODIFIED_COLUMN)
             lastModified.setFlags(lastModified.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            lastModified.setBackground(QColor("#f0f0f0"))
 
     def OnDelete(self):
         self.ClearStatusBar()
@@ -589,7 +586,6 @@ class PasswordManager():
                 categoryValue = comboBox.currentText()
                 self.ui.tableWidgetLoginData.removeCellWidget(row, self.CATEGORY_COLUMN)
                 self.ui.tableWidgetLoginData.setItem(row, self.CATEGORY_COLUMN, QTableWidgetItem(categoryValue))
-                self.ui.tableWidgetLoginData.item(row, self.LAST_MODIFIED_COLUMN).setBackground(QColor("#ffffff"))
             self.ApplyEdits()
         elif self.edit_delete_action == "Delete":
             self.DeleteRows()
@@ -633,7 +629,7 @@ class PasswordManager():
                 rowData.append(cellData)
 
             if mismatchFound:
-                rowData[self.LAST_MODIFIED_COLUMN] = str(datetime.datetime.now(pytz.utc))
+                rowData[self.LAST_MODIFIED_COLUMN] = str(datetime.datetime.now(datetime.timezone.utc))
             updatedData.append(rowData)
 
         updatedDataFrame = pd.DataFrame(updatedData, columns = self.EXPECTED_COLUMNS)
@@ -680,10 +676,10 @@ class PasswordManager():
         self.logger.info("Deleted %d entires", len(selectedRows))
 
     
-    def FormatDateTimeWithTimezone(self, UTCDateTimeAsString):
+    def FormatDate(self, UTCDateTimeAsString):
         # Need to get timezone from preferences
         UTCDateTime = datetime.datetime.strptime(UTCDateTimeAsString, "%Y-%m-%d %H:%M:%S.%f%z")
-        return UTCDateTime.astimezone(pytz.timezone('US/Eastern')).strftime("%#d/%#m/%y %#I:%M:%S %p")
+        return UTCDateTime.strftime("%m/%d/%Y")
 
     
     def OnAddNewEntry(self):
@@ -694,7 +690,7 @@ class PasswordManager():
                         'Username/ID': [self.ui.lineEditUsernameNewEntry.text()],
                         'Password': [self.ui.lineEditPasswordNewEntry.text()],
                         'Pin': [self.ui.lineEditPinNewEntry.text()],
-                        'Last Modified': [str(datetime.datetime.now(pytz.utc))],
+                        'Last Modified': [str(datetime.datetime.now(datetime.timezone.utc))],
                         'Notes': [self.ui.lineEditNotesNewEntry.text()]
                        }
         
@@ -752,13 +748,17 @@ class PasswordManager():
                     qTableWidgetItem.setText(self.ShowOrHidePassword(qTableWidgetItem.data(Qt.ItemDataRole.UserRole)))
                 elif col == self.LAST_MODIFIED_COLUMN:
                     qTableWidgetItem.setData(Qt.ItemDataRole.UserRole, stringData)
-                    qTableWidgetItem.setText(self.FormatDateTimeWithTimezone(stringData))
+                    qTableWidgetItem.setText(self.FormatDate(stringData))
+                    qTableWidgetItem.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    qTableWidgetItem.setBackground(QColor("#f0f0f0"))
 
                 self.ui.tableWidgetLoginData.setItem(row, col, qTableWidgetItem)
 
-
         self.ui.tableWidgetLoginData.repaint()
         self.ui.tableWidgetLoginData.resizeColumnsToContents()
+
+        current_category_col_width = self.ui.tableWidgetLoginData.columnWidth(self.CATEGORY_COLUMN)
+        self.ui.tableWidgetLoginData.setColumnWidth(self.CATEGORY_COLUMN, current_category_col_width + 20)
 
         total_width = self.ui.tableWidgetLoginData.viewport().width()
         column_width_sum = 0

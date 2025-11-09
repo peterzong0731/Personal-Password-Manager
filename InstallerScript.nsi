@@ -55,43 +55,38 @@ Section "Install"
 
     # Register the app for easy launching from Run dialog or Start Menu
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\App Paths\PersonalPasswordManager.exe" "" "$INSTDIR\PersonalPasswordManager.exe"
+
+    # Register the app to appear in Windows Startup Apps
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "PersonalPasswordManager" '"$INSTDIR\PersonalPasswordManager.exe"'
+    WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "PersonalPasswordManager" 2
 SectionEnd
 
 Section "Uninstall"
+    # Ensure the app is closed
     ExecWait 'taskkill /f /im PersonalPasswordManager.exe'
+    Sleep 1000  ; wait 1 second to ensure file handle is released
 
-    # Remove installed files in Program Files directory
+    # Delete installed files
     Delete "$INSTDIR\PersonalPasswordManager.exe"
 
-    # Remove Data, Data_Backups, and Logs files in AppData
-    StrCpy $0 $APPDATA
-    StrCpy $0 "$0\PersonalPasswordManager"
+    # Delete the uninstaller after everything else
+    ; (we’ll move this down later)
 
-    # Delete files in the subdirectories under AppData
-    Delete "$0\Data\*.*"
-    Delete "$0\Data_Backups\*.*"
-    Delete "$0\Logs\*.*"
+    # Remove Data, Backups, and Logs under AppData
+    StrCpy $0 "$APPDATA\PersonalPasswordManager"
+    RMDir /r "$0"  ; recursive remove (deletes files + dirs)
 
-    # Remove the empty subdirectories in AppData
-    RMDir "$0\Data"
-    RMDir "$0\Data_Backups"
-    RMDir "$0\Logs"
-
-    # Remove the main PersonalPasswordManager directory in AppData
-    RMDir "$0"
-
-    # Remove the uninstaller
-    Delete "$INSTDIR\Uninstall.exe"
-
-    # Remove the registry entries
+    # Remove registry entries
     DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Personal Password Manager"
     DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\App Paths\PersonalPasswordManager.exe"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "PersonalPasswordManager"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "PersonalPasswordManager"
 
-    # Remove the Start Menu shortcut
-    StrCpy $1 "$APPDATA\Microsoft\Windows\Start Menu\Programs\Personal Password Manager.lnk"
-    Delete $1
+    # Remove Start Menu shortcut
+    Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Personal Password Manager.lnk"
 
-    # Remove the installation directory
+    # Now remove uninstaller and folder
+    Delete "$INSTDIR\Uninstall.exe"
     RMDir "$INSTDIR"
 SectionEnd
 
