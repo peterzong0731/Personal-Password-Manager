@@ -7,6 +7,7 @@ import pandas as pd
 import re
 import sys
 import threading
+import uuid
 import webbrowser
 from PyQt6.QtCore import QStandardPaths, Qt
 from PyQt6.QtGui import QColor
@@ -54,8 +55,9 @@ class PasswordManager():
     PASSWORD_COLUMN = 4
     PIN_COLUMN = 5
     LAST_MODIFIED_COLUMN = 6
+    ROW_ID_COLUMN = 8
     CATEGORY_SELECT_ALL = "Select All"
-    EXPECTED_COLUMNS = ['Category', 'Name', 'Email', 'Username/ID', 'Password', 'Pin', 'Last Modified', 'Notes']
+    EXPECTED_COLUMNS = ['Category', 'Name', 'Email', 'Username/ID', 'Password', 'Pin', 'Last Modified', 'Notes', 'Row ID']
     if getattr(sys, 'frozen', False): #Running as an executable
         LOGIN_DATA_PATH = os.path.join(os.getenv('APPDATA'), "PersonalPasswordManager", "Data", "Login_data.parquet")
         CATEGORY_CONFIG_PATH = os.path.join(os.getenv('APPDATA'), "PersonalPasswordManager", "Data", "CategoryConfig.json")
@@ -243,6 +245,10 @@ class PasswordManager():
         self.login_data = pd.DataFrame({col: pd.Series(dtype='str') for col in self.EXPECTED_COLUMNS})
         if os.path.isfile(self.LOGIN_DATA_PATH):
             loginDataFile = pd.read_parquet(self.LOGIN_DATA_PATH)
+
+            if "Row ID" not in loginDataFile.columns:
+                loginDataFile.insert(0, "Row ID", [str(uuid.uuid4()) for _ in range(len(loginDataFile))])
+
             missingColumns = set(self.EXPECTED_COLUMNS) - set(loginDataFile.columns)
             if len(missingColumns) > 0:
                 self.logger.warning('Source data file "%s" is malformed, attempting to fix', self.LOGIN_DATA_PATH)
@@ -304,6 +310,9 @@ class PasswordManager():
                 self.logger.warning('Invalid file selected, "%s" is not a supported file type', fileType)
                 self.UpdateStatusBar(f'Invalid file selected, "{fileType}" is not a supported file type', "red")
                 return
+            
+        if "Row ID" not in self.imported_data.columns:
+            self.imported_data.insert(0, "Row ID", [str(uuid.uuid4()) for _ in range(len(self.imported_data))])
             
         if set(self.EXPECTED_COLUMNS) != set(self.imported_data.columns):
             missingColumns = set(self.EXPECTED_COLUMNS) - set(self.imported_data.columns)
@@ -458,9 +467,11 @@ class PasswordManager():
 
     def OnShowPasswords(self):
         self.show_passwords = self.ui.checkBoxShowPasswords.isChecked()
-        passwords = self.login_data.iloc[:, self.PASSWORD_COLUMN].tolist()
         for row in range(self.ui.tableWidgetLoginData.rowCount()):
-            self.ui.tableWidgetLoginData.item(row, self.PASSWORD_COLUMN).setText(self.ShowOrHidePassword(passwords[row]))
+            row_id = self.ui.tableWidgetLoginData.item(row, self.ROW_ID_COLUMN).text()
+            password = self.login_data.loc[self.login_data["Row ID"] == row_id, "Password"].values[0]
+            self.ui.tableWidgetLoginData.item(row, self.PASSWORD_COLUMN).setText(self.ShowOrHidePassword(password))
+
         if self.show_passwords:
             self.logger.info("Showing all passwords")
         else:
@@ -607,32 +618,39 @@ class PasswordManager():
         self.ClearStatusBar()
 
     def ApplyEdits(self):       
-        updatedData = []
+        updatedRows = []
         mismatchCount = 0
+
         for row in range(self.ui.tableWidgetLoginData.rowCount()):
-            rowData = []
+            row_id = self.ui.tableWidgetLoginData.item(row, self.ROW_ID_COLUMN).text()
+            df_row = self.login_data[self.login_data["Row ID"] == row_id].iloc[0].copy()
             mismatchFound = False
+
             for col in range(self.ui.tableWidgetLoginData.columnCount()):
                 item = self.ui.tableWidgetLoginData.item(row, col)
                 cellData = item.text()
-                originalData = self.login_data.iloc[row, col]
+                originalData = df_row.iloc[col]
+
                 if col == self.PASSWORD_COLUMN:
-                    if re.match("\*+", cellData):
+                    if re.match(r"\*+", cellData):
                         cellData = item.data(Qt.ItemDataRole.UserRole)
                     else:
-                        item.setData(Qt.ItemDataRole.UserRole, item.text())
+                        item.setData(Qt.ItemDataRole.UserRole, cellData)
                 elif col == self.LAST_MODIFIED_COLUMN:
                     cellData = item.data(Qt.ItemDataRole.UserRole)
+
                 if cellData != originalData:
                     mismatchFound = True
                     mismatchCount += 1
-                rowData.append(cellData)
+
+                df_row.iloc[col] = cellData
 
             if mismatchFound:
-                rowData[self.LAST_MODIFIED_COLUMN] = str(datetime.datetime.now(datetime.timezone.utc))
-            updatedData.append(rowData)
+                df_row.iloc[self.LAST_MODIFIED_COLUMN] = str(datetime.datetime.now(datetime.timezone.utc))
 
-        updatedDataFrame = pd.DataFrame(updatedData, columns = self.EXPECTED_COLUMNS)
+            updatedRows.append(df_row)
+
+        updatedDataFrame = pd.DataFrame(updatedRows)
 
         if (updatedDataFrame.iloc[:, self.NAME_COLUMN].str.strip() == "").any():
             self.UpdateStatusBar("Name can't be blank", "red")
@@ -646,23 +664,20 @@ class PasswordManager():
                 self.UpdateStatusBar("1 cell edited")
             else:
                 self.UpdateStatusBar(str(mismatchCount) + " cells edited")
-            
+
             if mismatchCount > 0:
                 self.SaveData()
-                self.DisplayTable()
+            
+            self.DisplayTable()
             self.logger.info("Edited %d cells", mismatchCount)
 
     def DeleteRows(self):
         selectedRows = set()
         for item in self.ui.tableWidgetLoginData.selectedItems():
-            selectedRows.add(item.row())
-        selectedRows = sorted(selectedRows, reverse = True)
+            selectedRows.add(self.ui.tableWidgetLoginData.item(item.row(), self.ROW_ID_COLUMN).text())
 
-        self.login_data = self.login_data.drop(index = selectedRows)
+        self.login_data = self.login_data[~self.login_data["Row ID"].isin(selectedRows)]
         self.login_data = self.login_data.reset_index(drop = True)
-
-        for row in selectedRows:
-            self.ui.tableWidgetLoginData.removeRow(row)
 
         if len(selectedRows) == 0:
             self.UpdateStatusBar("No entries deleted")
@@ -673,6 +688,8 @@ class PasswordManager():
 
         if len(selectedRows) > 0:
             self.SaveData()
+        
+        self.DisplayTable()
         self.logger.info("Deleted %d entires", len(selectedRows))
 
     
@@ -691,7 +708,8 @@ class PasswordManager():
                         'Password': [self.ui.lineEditPasswordNewEntry.text()],
                         'Pin': [self.ui.lineEditPinNewEntry.text()],
                         'Last Modified': [str(datetime.datetime.now(datetime.timezone.utc))],
-                        'Notes': [self.ui.lineEditNotesNewEntry.text()]
+                        'Notes': [self.ui.lineEditNotesNewEntry.text()],
+                        'Row ID': [str(uuid.uuid4())]
                        }
         
         if newEntryData['Name'][0].strip() == '':
@@ -726,6 +744,7 @@ class PasswordManager():
 
     
     def DisplayTable(self):
+        self.ui.tableWidgetLoginData.setSortingEnabled(False)
         self.ui.tableWidgetLoginData.setRowCount(self.login_data.shape[0])
         self.ui.tableWidgetLoginData.setColumnCount(self.login_data.shape[1])
         self.ui.tableWidgetLoginData.setHorizontalHeaderLabels(self.login_data.columns)        
@@ -754,6 +773,8 @@ class PasswordManager():
 
                 self.ui.tableWidgetLoginData.setItem(row, col, qTableWidgetItem)
 
+        self.ui.tableWidgetLoginData.setColumnHidden(self.ROW_ID_COLUMN, True)
+
         self.ui.tableWidgetLoginData.repaint()
         self.ui.tableWidgetLoginData.resizeColumnsToContents()
 
@@ -770,6 +791,7 @@ class PasswordManager():
             self.ui.tableWidgetLoginData.horizontalHeader().setStretchLastSection(True)
 
         self.ui.tableWidgetLoginData.horizontalHeader().setStyleSheet(f"QHeaderView::section {{ background-color: {self.preferences['TableHeaderRowColor']}; color: black; }}")
+        self.ui.tableWidgetLoginData.setSortingEnabled(True)
 
 
     def OnGeneratePassword(self):
